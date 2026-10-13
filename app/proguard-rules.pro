@@ -19,3 +19,5 @@
 # Ktor references JVM-only classes that are not on Android.
 -dontwarn java.lang.management.**
 -dontwarn org.slf4j.**
+# A transitive dependency of web3j references an optional Groovy script engine that is never used.
+-dontwarn groovy.lang.**

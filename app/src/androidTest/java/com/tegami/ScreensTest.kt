@@ -10,7 +10,6 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.tegami.config.NetworkConfig
 import com.tegami.data.Account
-import com.tegami.domain.AmountPrivacy
 import com.tegami.domain.Letter
 import com.tegami.domain.Money
 import com.tegami.domain.Payer
@@ -43,24 +42,26 @@ class ScreensTest {
     @get:Rule val rule = createComposeRule()
 
     private val config = NetworkConfig(
-        "devnet", "https://api.devnet.solana.com", "Tokenz", NetworkConfig.Asset("Mint111", "tUSD", "test", 6),
-        NetworkConfig.Registry("Test registry", "Bundled for tests.", listOf(NetworkConfig.RegisteredPayer("Studio1", "Kumo Studio"))),
-        demoRecipient = "Demo1",
+        "monad-testnet", 10143, "https://testnet-rpc.monad.xyz", "https://testnet.monadexplorer.com",
+        "0x2222222222222222222222222222222222222222",
+        NetworkConfig.Asset("0x1111111111111111111111111111111111111111", "tUSD", "test", 6),
+        NetworkConfig.Registry("TegamiSeal registry", "For tests.", listOf(NetworkConfig.RegisteredPayer("0x5711000000000000000000000000000000005711", "Kumo Studio"))),
+        demoRecipient = "0x0C6C42699A17ECECD053aCA23882381e4E11953B",
     )
-    private val watcher = Account("CKLzXqa2a15yYhnnEac4DNz9pwqwWWLynUNGg1ng8Yk3", "Watch-only", Account.Kind.WatchOnly)
+    private val watcher = Account("0x0C6C42699A17ECECD053aCA23882381e4E11953B", "Watch-only", Account.Kind.WatchOnly)
 
-    private fun letter(note: String? = null, payer: Payer = Payer.Registered("Studio1", "Kumo Studio", "Test registry"),
-                       seal: Seal = Seal.Sealed("INV-1"), amount: Money? = Money(1_250_000_000, 6, "tUSD")) =
-        Letter("Sig111", 1, Instant.parse("2026-10-12T10:00:00Z"), Settlement.Finalized, payer, amount,
-            if (amount == null) AmountPrivacy.Confidential else AmountPrivacy.Public, seal, note)
+    private fun letter(note: String? = null, payer: Payer = Payer.Registered("0x5711000000000000000000000000000000005711", "Kumo Studio", "TegamiSeal registry"),
+                       seal: Seal = Seal.Sealed("INV-1"), amount: Money = Money(1_250_000_000, 6, "tUSD")) =
+        Letter("0", 100, "0xabc", Instant.parse("2026-10-12T10:00:00Z"), Settlement.Finalized, payer, amount, seal, note)
 
     private fun set(content: @androidx.compose.runtime.Composable () -> Unit) = rule.setContent { TegamiTheme(reducedMotion = true) { content() } }
 
     @Test fun welcomeOffersWalletWatchDemoAndVerify() {
         var demo = 0
         var verify = 0
-        set { WelcomeScreen(config, false, {}, { null }, { demo++; null }, { verify++ }) }
-        rule.onNodeWithText("Connect wallet").assertIsDisplayed()
+        set { WelcomeScreen(config, false, {}, {}, { null }, { demo++; null }, { verify++ }) }
+        rule.onNodeWithText("Create account with a passkey").assertIsDisplayed()
+        rule.onNodeWithText("I already have a passkey").assertIsDisplayed()
         rule.onNodeWithText("Try the devnet demo address").performScrollTo().performClick()
         rule.onNodeWithText("I received a statement to verify").performScrollTo().performClick()
         assertEquals(1, demo)
@@ -86,10 +87,12 @@ class ScreensTest {
         rule.onNodeWithText("Use in an income statement").assertDoesNotExist()
     }
 
-    @Test fun encryptedAmountIsNeverShownAsANumber() {
-        set { LetterDetailScreen(config, letter(amount = null, seal = Seal.None), canSign = true, {}, {}, {}, {}) }
-        rule.onNodeWithContentDescription("Amount encrypted on-chain").assertIsDisplayed()
-        rule.onNodeWithText("Encrypted on-chain with a Token-2022 confidential transfer", substring = true).performScrollTo().assertIsDisplayed()
+    @Test fun unregisteredPayerIsFlaggedAndNeverCounted() {
+        val stranger = Payer.Unregistered("0x5A5A00000000000000000000000000000000BAD0")
+        set { LetterDetailScreen(config, letter(payer = stranger, seal = Seal.Untrusted("INV-1", com.tegami.domain.UntrustedReason.PayerNotRegistered)),
+            canSign = true, {}, {}, {}, {}) }
+        rule.onNodeWithText("Not registered").assertIsDisplayed()
+        rule.onNodeWithText("the payer isn't registered", substring = true).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Use in an income statement").assertDoesNotExist()
     }
 
@@ -98,17 +101,18 @@ class ScreensTest {
             ProofsScreen(config, watcher, ProofsUi(ProofForm(from = LocalDate.now(), to = LocalDate.now())), emptyList(), false,
                 {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
         }
-        rule.onNodeWithText("Signing needs your wallet").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Signing needs your passkey").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Review what you'll share").assertDoesNotExist()
     }
 
     @Test fun signedStatementSealsOnceThenOffersShare() {
-        val statement = com.tegami.proof.IncomeStatement(network = "devnet", mint = "Mint111", symbol = "tUSD", decimals = 6,
+        val statement = com.tegami.proof.IncomeStatement(network = "monad-testnet", chainId = 10143,
+            sealContract = config.sealContract, token = config.asset.address, symbol = "tUSD", decimals = 6,
             recipient = watcher.address, thresholdUnits = 2_000_000_000, from = "2026-09-13", to = "2026-10-12",
-            verifier = "Landlord", issuedAt = 1_790_000_000, expiresAt = 1_792_000_000, nonce = "n", evidence = listOf("Sig111", "Sig222"))
+            verifier = "Landlord", issuedAt = 1_790_000_000, expiresAt = 1_792_000_000, nonce = "n", evidence = listOf("0", "1"))
         val signed = ProofsUi(ProofForm(from = LocalDate.now(), to = LocalDate.now()),
             step = com.tegami.ui.proofs.SignStep.Signed(com.tegami.proof.SignedStatement(statement, "SigX"), "tegami://verify?s=x"))
-        val wallet = Account(watcher.address, "Wallet", Account.Kind.Wallet)
+        val wallet = Account(watcher.address, "Passkey account", Account.Kind.Passkey)
         set { ProofsScreen(config, wallet, signed, emptyList(), false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
         rule.onNodeWithText("Statement sealed!").assertIsDisplayed()
         rule.onNodeWithText("2 payments", substring = true).assertIsDisplayed()

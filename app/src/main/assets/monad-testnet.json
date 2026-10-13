@@ -13,6 +13,6 @@
       { "address": "0x1B55A860113C707e36ad67566A87910Cf602eA98", "name": "Hoshi Agency (test payer)" }
     ]
   },
-  "demoRecipient": "0xdC299ac462730CDf485Cd88001175e8DB79A886e",
+  "demoRecipient": "0x0C6C42699A17ECECD053aCA23882381e4E11953B",
   "passkeyRpId": "tegami-monad.vercel.app"
 }
