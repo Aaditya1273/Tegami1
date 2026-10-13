@@ -127,7 +127,7 @@ fun TegamiRoot(session: SessionViewModel, incomingLinks: Int) {
                 popExitTransition = { if (reduced) fadeOut(tween(Motion.micro)) else fadeOut(tween(Motion.micro)) + slideOutHorizontally(tween(Motion.screen)) { it / 12 } },
             ) {
                 composable(Routes.WELCOME) {
-                    WelcomeScreen(config, connecting, onConnect = connect, onSignIn = signIn, onWatch = { session.watch(it) },
+                    WelcomeScreen(config, connecting, onConnect = connect, onSignIn = signIn, onMetaMask = { session.connectMetaMask() }, onWatch = { session.watch(it) },
                         onDemo = { session.watchDemo() }, onVerify = { nav.navigate(Routes.VERIFY) })
                 }
                 composable("home") {
@@ -170,7 +170,7 @@ fun TegamiRoot(session: SessionViewModel, incomingLinks: Int) {
                     val a = account ?: return@composable
                     val vm: com.tegami.ui.pay.PayViewModel = hiltViewModel()
                     val ui by vm.ui.collectAsStateWithLifecycle()
-                    com.tegami.ui.pay.PayScreen(config, a.address, ui, onTo = vm::setTo, onAmount = vm::setAmount,
+                    com.tegami.ui.pay.PayScreen(config, a.address, a.kind == com.tegami.data.Account.Kind.MetaMask, ui, onTo = vm::setTo, onAmount = vm::setAmount,
                         onInvoice = vm::setInvoice, onNote = vm::setNote, onSend = { activity?.let(vm::send) },
                         onLoad = vm::loadBalances, onAnother = vm::reset, onBack = { nav.popBackStack() })
                 }

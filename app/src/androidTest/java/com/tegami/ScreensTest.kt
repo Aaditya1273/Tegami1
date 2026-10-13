@@ -59,10 +59,10 @@ class ScreensTest {
     @Test fun welcomeOffersWalletWatchDemoAndVerify() {
         var demo = 0
         var verify = 0
-        set { WelcomeScreen(config, false, {}, {}, { null }, { demo++; null }, { verify++ }) }
+        set { WelcomeScreen(config, false, {}, {}, {}, { null }, { demo++; null }, { verify++ }) }
         rule.onNodeWithText("Create account with a passkey").assertIsDisplayed()
         rule.onNodeWithText("I already have a passkey").assertIsDisplayed()
-        rule.onNodeWithText("Try the devnet demo address").performScrollTo().performClick()
+        rule.onNodeWithText("Try the Monad testnet demo address").performScrollTo().performClick()
         rule.onNodeWithText("I received a statement to verify").performScrollTo().performClick()
         assertEquals(1, demo)
         assertEquals(1, verify)

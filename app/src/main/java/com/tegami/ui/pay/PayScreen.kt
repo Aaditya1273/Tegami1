@@ -79,6 +79,7 @@ data class PayUi(
 class PayViewModel @Inject constructor(
     private val accounts: AccountRepository,
     private val payments: PaymentRepository,
+    private val metaMask: com.tegami.data.MetaMaskRepository,
     private val config: NetworkConfig,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(PayUi())
@@ -109,11 +110,15 @@ class PayViewModel @Inject constructor(
             else -> null
         }
         if (problem != null) { _ui.update { it.copy(formError = problem) }; return }
-        _ui.update { it.copy(progress = "Unlocking with your passkey…", error = null) }
+        val account = accounts.account.value ?: return
+        val viaMetaMask = account.kind == com.tegami.data.Account.Kind.MetaMask
+        _ui.update { it.copy(progress = if (viaMetaMask) "Approve in MetaMask…" else "Unlocking with your passkey…", error = null) }
         viewModelScope.launch {
             try {
-                val key = accounts.signingKey(activity)
-                val tx = payments.pay(key, u.to, amount!!, u.invoice.trim(), UntrustedText.sanitize(u.note)) { step ->
+                val sender: suspend (String, String) -> String =
+                    if (viaMetaMask) ({ to, data -> metaMask.sendTransaction(account.address, to, data) })
+                    else payments.passkeySender(accounts.signingKey(activity))
+                val tx = payments.pay(account.address, sender, u.to, amount!!, u.invoice.trim(), UntrustedText.sanitize(u.note)) { step ->
                     _ui.update { it.copy(progress = step) }
                 }
                 _ui.update { it.copy(progress = null, sentTx = tx) }
@@ -134,6 +139,7 @@ private fun mon(wei: BigInteger) = BigDecimal(wei).movePointLeft(18).setScale(4,
 fun PayScreen(
     config: NetworkConfig,
     address: String,
+    viaMetaMask: Boolean,
     ui: PayUi,
     onTo: (String) -> Unit,
     onAmount: (String) -> Unit,
@@ -197,9 +203,10 @@ fun PayScreen(
         }
         ui.error?.let { Gap(8); ErrorBanner(it, onRetry = null) }
         Gap(16)
-        PrimaryButton(ui.progress ?: "Pay and seal with passkey", loading = ui.progress != null, onClick = onSend)
+        PrimaryButton(ui.progress ?: if (viaMetaMask) "Pay and seal with MetaMask" else "Pay and seal with passkey", loading = ui.progress != null, onClick = onSend)
         Gap(8)
-        FactLine("Your passkey unlocks the key on this phone; nothing is sent to a server. You approve the exact amount and recipient here.", Tone.Info)
+        FactLine(if (viaMetaMask) "MetaMask holds the key: it shows each transaction and you approve it there."
+            else "Your passkey unlocks the key on this phone; nothing is sent to a server. You approve the exact amount and recipient here.", Tone.Info)
         Gap(32)
     }
 }

@@ -29,10 +29,10 @@ import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** The address whose letters Tegami shows. Only a passkey account can sign. */
+/** The address whose letters Tegami shows. Passkey and MetaMask accounts can sign; watch-only can't. */
 data class Account(val address: String, val label: String, val kind: Kind) {
-    enum class Kind { Passkey, WatchOnly }
-    val canSign: Boolean get() = kind == Kind.Passkey
+    enum class Kind { Passkey, MetaMask, WatchOnly }
+    val canSign: Boolean get() = kind != Kind.WatchOnly
 }
 
 /**
@@ -86,6 +86,16 @@ class AccountRepository @Inject constructor(
         return remember(prf, credentialId)
     }
 
+    /** A MetaMask account: MetaMask holds the key and approves every signature and payment itself. */
+    fun rememberMetaMask(address: String): Account {
+        lock()
+        return Account(EvmKeys.checksum(address), "MetaMask", Account.Kind.MetaMask).also {
+            prefs.edit().putString(KEY_ADDRESS, it.address).putString(KEY_LABEL, it.label)
+                .putString(KEY_KIND, it.kind.name).remove(KEY_CREDENTIAL).apply()
+            _account.value = it
+        }
+    }
+
     /** Read-only: shows an address's letters without any ability to sign for it. */
     fun watch(address: String, label: String = "Watch-only"): Account {
         val clean = address.trim()
@@ -104,7 +114,7 @@ class AccountRepository @Inject constructor(
      */
     suspend fun signingKey(activity: Activity): ECKeyPair {
         val current = _account.value ?: throw TegamiError.NotConnected
-        if (!current.canSign) throw TegamiError.WatchOnly
+        if (current.kind != Account.Kind.Passkey) throw TegamiError.WatchOnly
         session?.let { return it }
         val (_, prf) = assertPrf(activity, prefs.getString(KEY_CREDENTIAL, null))
         val key = EvmKeys.fromPrfOutput(prf)

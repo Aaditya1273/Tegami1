@@ -86,7 +86,7 @@ fun SettingsScreen(
                     copyToClipboard(ctx, "Address", account.address); onMessage("Address copied")
                 }) {
                     Text(shortAddress(account.address), style = MaterialTheme.typography.titleMedium, color = c.ink)
-                    Text("${if (account.canSign) account.label else "Watch-only"} · ${config.network.replaceFirstChar { it.uppercase() }}",
+                    Text("${if (account.canSign) account.label else "Watch-only"} · ${config.networkLabel}",
                         style = MaterialTheme.typography.bodyMedium, color = c.inkSecondary)
                 }
             }
@@ -97,7 +97,8 @@ fun SettingsScreen(
                 Figure("Shared", disclosureCount, Modifier.weight(1f))
             }
             Gap(12)
-            Text(if (account.canSign) "Your passkey is the key: Tegami derives the account from it when you sign and keeps nothing secret on the phone. Lose the passkey and the account is gone."
+            Text(if (account.kind == com.tegami.data.Account.Kind.MetaMask) "MetaMask holds the key. Tegami asks, and you approve each signature and payment in MetaMask."
+                else if (account.canSign) "Your passkey is the key: Tegami derives the account from it when you sign and keeps nothing secret on the phone. Lose the passkey and the account is gone."
                 else "Read-only. Tegami can show letters for this address but can't sign anything for it.",
                 style = MaterialTheme.typography.bodyMedium, color = c.inkTertiary)
             Gap(16)

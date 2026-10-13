@@ -45,6 +45,7 @@ fun WelcomeScreen(
     connecting: Boolean,
     onConnect: () -> Unit,
     onSignIn: () -> Unit,
+    onMetaMask: () -> Unit,
     onWatch: (String) -> String?,
     onDemo: () -> String?,
     onVerify: () -> Unit,
@@ -78,6 +79,8 @@ fun WelcomeScreen(
             style = MaterialTheme.typography.bodyMedium, color = c.inkTertiary, modifier = Modifier.fillMaxWidth())
         Gap(8)
         SecondaryButton("I already have a passkey", enabled = !connecting, onClick = onSignIn)
+        Gap(8)
+        SecondaryButton("Connect MetaMask", enabled = !connecting, onClick = onMetaMask)
         Gap(8)
         if (!watching) {
             SecondaryButton("Watch an address instead") { watching = true }

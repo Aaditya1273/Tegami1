@@ -81,6 +81,8 @@ dependencies {
     // Passkeys with the WebAuthn PRF extension (the Mera account model).
     implementation("androidx.credentials:credentials:1.5.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    // MetaMask Mobile as an alternative account (connect, personal_sign, eth_sendTransaction).
+    implementation("io.metamask.androidsdk:metamask-android-sdk:0.6.6")
 
     implementation("com.google.dagger:hilt-android:2.51.1")
     kapt("com.google.dagger:hilt-compiler:2.51.1")

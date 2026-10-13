@@ -34,19 +34,25 @@ class PaymentRepository @Inject constructor(
             config.asset.decimals, config.asset.symbol),
     )
 
-    /** Pays [amount] to [to] with an invoice and note. Returns the confirmed `pay` transaction hash. */
-    suspend fun pay(key: ECKeyPair, to: String, amount: Money, invoice: String, note: String, onStep: (String) -> Unit = {}): String {
+    /** Sends transactions signed on this device with a passkey account's key. */
+    fun passkeySender(key: ECKeyPair): suspend (String, String) -> String = { to, data -> send(key, to, data) }
+
+    /**
+     * Pays [amount] from [from] to [to] with an invoice and note; [sender] submits each transaction (signed on the
+     * device for passkey accounts, approved in MetaMask for MetaMask accounts). Returns the confirmed `pay` hash.
+     */
+    suspend fun pay(from: String, sender: suspend (to: String, data: String) -> String, to: String, amount: Money,
+                    invoice: String, note: String, onStep: (String) -> Unit = {}): String {
         if (!EvmKeys.isAddress(to)) throw TegamiError.Invalid("That isn't a Monad address.")
-        val from = EvmKeys.address(key)
         if (EvmKeys.sameAddress(from, to)) throw TegamiError.Invalid("You can't send a letter to yourself.")
         val units = BigInteger.valueOf(amount.units)
         val allowance = SealContract.decodeUint(rpc.call(config.asset.address, SealContract.allowanceCall(from, config.sealContract)))
         if (allowance < units) {
             onStep("Allowing the seal contract to send ${config.asset.symbol}…")
-            confirm(send(key, config.asset.address, SealContract.approveCall(config.sealContract, MAX_UINT)))
+            confirm(sender(config.asset.address, SealContract.approveCall(config.sealContract, MAX_UINT)))
         }
         onStep("Sending and sealing…")
-        return send(key, config.sealContract, SealContract.payCall(config.asset.address, to, units, invoice, note)).also { confirm(it) }
+        return sender(config.sealContract, SealContract.payCall(config.asset.address, to, units, invoice, note)).also { confirm(it) }
     }
 
     private suspend fun send(key: ECKeyPair, to: String, data: String): String {

@@ -47,6 +47,7 @@ class SessionViewModel @Inject constructor(
     private val disclosureLog: DisclosureLog,
     private val links: IncomingLinks,
     private val rpc: EvmRpc,
+    private val metaMask: com.tegami.data.MetaMaskRepository,
     val config: NetworkConfig,
 ) : ViewModel() {
     val account = accounts.account
@@ -95,13 +96,30 @@ class SessionViewModel @Inject constructor(
         }
     }
 
+    /** Connects MetaMask Mobile: it opens, the user approves, and Tegami switches it to Monad. */
+    fun connectMetaMask() = viewModelScope.launch {
+        _connecting.value = true
+        try {
+            accounts.rememberMetaMask(metaMask.connect())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _messages.tryEmit(TegamiError.from(e).userMessage.let { m -> if (e is TegamiError.WalletRejected) "MetaMask: ${e.detail}" else m })
+        } finally {
+            _connecting.value = false
+        }
+    }
+
     /** Returns an error message, or null when the address is now being watched. */
     fun watch(address: String, label: String = "Watch-only"): String? =
         runCatching { accounts.watch(address, label) }.exceptionOrNull()?.let { TegamiError.from(it).userMessage }
 
     fun watchDemo(): String? = config.demoRecipient?.let { watch(it, "Demo freelancer (testnet)") } ?: "This build has no demo address."
 
-    fun disconnect() = accounts.disconnect()
+    fun disconnect() {
+        if (accounts.account.value?.kind == com.tegami.data.Account.Kind.MetaMask) metaMask.disconnect()
+        accounts.disconnect()
+    }
 
     fun loadMint() = viewModelScope.launch {
         _mint.value = MintState.Loading
