@@ -6,6 +6,7 @@ import com.tegami.domain.LetterRules
 import com.tegami.domain.TegamiError
 import com.tegami.evm.EvmKeys
 import com.tegami.evm.EvmRpc
+import com.tegami.evm.LetterIndex
 import com.tegami.evm.OnchainLetter
 import com.tegami.evm.SealContract
 import kotlinx.coroutines.async
@@ -32,17 +33,23 @@ data class LettersState(
     val updatedAt: Instant? = null,
     /** Letters that arrived since the previous read in this session (never set on the first read). */
     val newIds: Set<String> = emptySet(),
-)
+    /** Where the last page was found: the Envio indexer, or the contract directly. */
+    val source: Source? = null,
+) {
+    enum class Source { Indexer, Contract }
+}
 
 /**
- * Incoming letters for one owner, read live from the TegamiSeal contract on Monad: the owner's letter
- * count, then each letter (newest first, paged), the payer's registry entry, and the paying transaction.
+ * Incoming letters for one owner. The owner's letter count always comes from the TegamiSeal contract on Monad;
+ * the letters themselves come from Tegami's Envio indexer in one query when it returns exactly the expected
+ * indices, and otherwise from the contract (each letter, the payer's registry entry, and the paying transaction).
  * Kept in memory only.
  */
 @Singleton
 class LetterRepository @Inject constructor(
     private val rpc: EvmRpc,
     private val config: NetworkConfig,
+    private val index: LetterIndex,
 ) {
     private val _state = MutableStateFlow(LettersState())
     val state: StateFlow<LettersState> = _state
@@ -59,12 +66,14 @@ class LetterRepository @Inject constructor(
         _state.update { it.copy(loading = true, error = null) }
         try {
             val count = SealContract.decodeCount(rpc.call(config.sealContract, SealContract.letterCountCall(owner)))
-            val (letters, nextIndex) = loadPage(owner, count - 1)
+            val (page, nextIndex) = loadPage(owner, count - 1)
+            val (letters, source) = page
             next = nextIndex
             _state.update {
                 val before = it.letters.map { l -> l.id }.toSet()
                 val arrived = if (before.isEmpty()) emptySet() else letters.map { l -> l.id }.toSet() - before
-                it.copy(letters = letters, loading = false, canLoadMore = next >= 0, updatedAt = Instant.now(), newIds = arrived)
+                it.copy(letters = letters, loading = false, canLoadMore = next >= 0, updatedAt = Instant.now(), newIds = arrived,
+                    source = source ?: it.source)
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -77,7 +86,8 @@ class LetterRepository @Inject constructor(
         if (next < 0) return@withLock
         _state.update { it.copy(loadingMore = true, error = null) }
         try {
-            val (older, nextIndex) = loadPage(owner, next)
+            val (page, nextIndex) = loadPage(owner, next)
+            val older = page.first
             next = nextIndex
             _state.update {
                 val merged = (it.letters + older).distinctBy { l -> l.id }.sortedByDescending { l -> l.id.toLong() }
@@ -95,12 +105,13 @@ class LetterRepository @Inject constructor(
         _state.value = LettersState()
     }
 
-    /** Loads up to [PAGE] letters from [newest] downwards; returns them and the next index (-1 when done). */
-    private suspend fun loadPage(owner: String, newest: Long): Pair<List<Letter>, Long> = coroutineScope {
-        if (newest < 0) return@coroutineScope emptyList<Letter>() to -1L
+    /** Loads up to [PAGE] letters from [newest] downwards; returns them, their source, and the next index (-1 when done). */
+    private suspend fun loadPage(owner: String, newest: Long): Pair<Pair<List<Letter>, LettersState.Source?>, Long> = coroutineScope {
+        if (newest < 0) return@coroutineScope (emptyList<Letter>() to null) to -1L
         val oldest = maxOf(0, newest - PAGE + 1)
         val finalized = rpc.finalizedBlock()
         val gate = Semaphore(PARALLEL)
+        fromIndex(owner, newest, oldest, finalized, gate)?.let { return@coroutineScope (it to LettersState.Source.Indexer) to (oldest - 1) }
         val onchain = (newest downTo oldest).map { i ->
             async { gate.withPermit { SealContract.decodeLetter(i, rpc.call(config.sealContract, SealContract.letterAtCall(owner, i))) } }
         }.awaitAll().filter { EvmKeys.sameAddress(it.token, config.asset.address) }
@@ -114,7 +125,33 @@ class LetterRepository @Inject constructor(
                 }
             }
         }.awaitAll()
-        LetterRules.markDuplicateInvoices(letters) to (oldest - 1)
+        (LetterRules.markDuplicateInvoices(letters) to LettersState.Source.Contract) to (oldest - 1)
+    }
+
+    /**
+     * The page from the Envio indexer, or null to fall back to the contract: when it isn't configured, fails, or is
+     * missing any index (e.g. still catching up). Notes it couldn't decode are read from the contract.
+     */
+    private suspend fun fromIndex(owner: String, newest: Long, oldest: Long, finalized: Long, gate: Semaphore): List<Letter>? = coroutineScope {
+        if (!index.enabled) return@coroutineScope null
+        val page = try {
+            index.page(owner, newest, oldest)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            android.util.Log.w("Tegami", "indexer unavailable, reading the contract: ${e.message}")
+            null
+        } ?: return@coroutineScope null
+        if (page.map { it.letter.index } != (newest downTo oldest).toList()) return@coroutineScope null
+        page.map { e ->
+            async {
+                val l = if (e.noteKnown) e.letter
+                    else gate.withPermit { SealContract.decodeLetter(e.letter.index, rpc.call(config.sealContract, SealContract.letterAtCall(owner, e.letter.index))) }
+                l to e
+            }
+        }.awaitAll()
+            .filter { (l, _) -> EvmKeys.sameAddress(l.token, config.asset.address) }
+            .map { (l, e) -> LetterRules.toLetter(l, LetterRules.settlement(l.blockNumber, finalized), e.payerName, e.txHash, config) }
+            .let(LetterRules::markDuplicateInvoices)
     }
 
     /** The paying transaction, found from the contract's `Sealed` event in the letter's own block. */

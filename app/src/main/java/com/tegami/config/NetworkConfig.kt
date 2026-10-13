@@ -21,6 +21,8 @@ data class NetworkConfig(
     val demoRecipient: String? = null,
     /** Domain that vouches for this app's passkeys (serves /.well-known/assetlinks.json). Null: passkeys off. */
     val passkeyRpId: String? = null,
+    /** GraphQL endpoint of Tegami's Envio indexer (indexer/). Null: letters are read from the contract only. */
+    val indexerUrl: String? = null,
 ) {
     @Serializable
     data class Asset(val address: String, val symbol: String, val name: String, val decimals: Int)
@@ -45,6 +47,7 @@ data class NetworkConfig(
         private val json = Json { ignoreUnknownKeys = true }
         fun parse(text: String): NetworkConfig = json.decodeFromString(serializer(), text).also {
             require(it.rpcUrl.startsWith("https://")) { "RPC must use HTTPS" }
+            require(it.indexerUrl == null || it.indexerUrl.startsWith("https://")) { "indexer must use HTTPS" }
             require(it.asset.decimals in 0..18) { "unsupported decimals" }
         }
     }

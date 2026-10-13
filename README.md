@@ -82,10 +82,11 @@ On Monad, amounts, payers, invoices and notes are public. A statement keeps disc
 
 ```bash
 . scripts/toolchain.env                     # JDK 17 + Android SDK on PATH
-./gradlew testDebugUnitTest                 # 31 JVM tests (incl. mera + EIP-191 reference vectors)
+./gradlew testDebugUnitTest                 # 34 JVM tests (incl. mera + EIP-191 reference vectors)
 ./gradlew assembleDebug                     # app/build/outputs/apk/debug/app-debug.apk
 # Optional "Continue with Google" (Privy): add -Ptegami.privyAppId=… -Ptegami.privyClientId=… (public IDs)
 (cd contracts && forge test)                # 4 Foundry tests for TegamiSeal
+(cd indexer && pnpm i && pnpm test)         # Envio indexer: handler tests + real Monad letters checked against letterAt()
 PASSKEY_RP_ID=tegami-monad.vercel.app scripts/monad_setup.sh   # deploy + seed (needs PRIVATE_KEY in .env.local)
 ```
 
@@ -99,6 +100,7 @@ PASSKEY_RP_ID=tegami-monad.vercel.app scripts/monad_setup.sh   # deploy + seed (
 | `app/…/data` | Passkey accounts (Credential Manager + PRF), Google accounts (Privy embedded wallet), letters, sealed payments |
 | `app/…/proof` | Statement builder (minimal disclosure), codec (`tegami://verify?s=`), verifier |
 | `app/…/guardian` | Deterministic on-device rules; typed proposals; never acts on payment text |
+| `indexer/` | Envio HyperIndex: `Letter`, `Payer`, `Recipient` from `Sealed`/`PayerSet` via HyperSync; the app lists letters with one GraphQL query and falls back to the contract |
 | `scripts/monad_setup.sh` | Deploys, registers test payers, sends real sealed payments |
 
 More detail, including security model and known limits: [docs/ENGINEERING.md](docs/ENGINEERING.md). The longer-term product vision: [docs/VISION.md](docs/VISION.md).

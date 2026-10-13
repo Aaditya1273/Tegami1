@@ -86,7 +86,8 @@ fun LettersScreen(
             Column(g) {
             Gap(8)
             state.updatedAt?.let {
-                Text("Read from ${config.networkLabel} at ${it.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))}",
+                val via = if (state.source == com.tegami.data.LettersState.Source.Indexer) " via Envio" else ""
+                Text("Read from ${config.networkLabel}$via at ${it.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))}",
                     style = MaterialTheme.typography.bodyMedium, color = c.inkTertiary)
             }
             Gap(12)
