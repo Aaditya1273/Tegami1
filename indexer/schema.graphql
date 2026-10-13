@@ -1,0 +1,31 @@
+"""One sealed payment: the money and its invoice, paid in one Monad transaction. Id: `<recipient>-<index>` (lowercase)."""
+type Letter {
+  id: ID!
+  recipient: String! @index
+  "Position in the recipient's list on the contract (letterAt(recipient, index))."
+  index: BigInt!
+  payer: Payer!
+  token: String!
+  amount: BigInt!
+  invoice: String!
+  "The payer's note, decoded from the pay() call; null if the payment came through another contract."
+  note: String
+  blockNumber: Int!
+  timestamp: Int!
+  txHash: String!
+}
+
+"""Someone who has paid through Tegami, with their registry name (empty = not registered)."""
+type Payer {
+  id: ID!
+  name: String!
+  lettersSent: Int!
+  letters: [Letter!]! @derivedFrom(field: "payer")
+}
+
+"""A recipient's running totals (raw token units; one token on testnet)."""
+type Recipient {
+  id: ID!
+  letterCount: Int!
+  totalReceived: BigInt!
+}
