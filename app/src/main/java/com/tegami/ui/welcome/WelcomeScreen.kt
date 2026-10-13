@@ -45,7 +45,7 @@ fun WelcomeScreen(
     connecting: Boolean,
     onConnect: () -> Unit,
     onSignIn: () -> Unit,
-    onMetaMask: () -> Unit,
+    onGoogle: (() -> Unit)?,
     onWatch: (String) -> String?,
     onDemo: () -> String?,
     onVerify: () -> Unit,
@@ -80,8 +80,10 @@ fun WelcomeScreen(
         Gap(8)
         SecondaryButton("I already have a passkey", enabled = !connecting, onClick = onSignIn)
         Gap(8)
-        SecondaryButton("Connect MetaMask", enabled = !connecting, onClick = onMetaMask)
-        Gap(8)
+        if (onGoogle != null) {
+            SecondaryButton("Continue with Google", enabled = !connecting, onClick = onGoogle)
+            Gap(8)
+        }
         if (!watching) {
             SecondaryButton("Watch an address instead") { watching = true }
         } else {

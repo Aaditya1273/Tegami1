@@ -57,7 +57,7 @@ data class ProofsUi(
 class ProofsViewModel @Inject constructor(
     private val config: NetworkConfig,
     private val accounts: AccountRepository,
-    private val metaMask: com.tegami.data.MetaMaskRepository,
+    private val privy: com.tegami.data.PrivyWallet,
     private val letters: LetterRepository,
     private val log: DisclosureLog,
     saved: SavedStateHandle,
@@ -129,7 +129,7 @@ class ProofsViewModel @Inject constructor(
             val step = try {
                 val message = draft.statement.message()
                 val account = accounts.account.value
-                val sig = if (account?.kind == com.tegami.data.Account.Kind.MetaMask) metaMask.personalSign(account.address, message)
+                val sig = if (account?.kind == com.tegami.data.Account.Kind.Google) privy.personalSign(account.address, message)
                     else EvmKeys.personalSign(message, accounts.signingKey(activity))
                 check(EvmKeys.verifyPersonal(draft.statement.recipient, message, sig)) { "signature did not verify" }
                 val signed = SignedStatement(draft.statement, sig)

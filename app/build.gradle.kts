@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
     id("kotlin-kapt")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.dagger.hilt.android")
@@ -12,6 +13,11 @@ val network = providers.gradleProperty("tegami.network").getOrElse("monad-testne
 require(file("src/main/assets/$network.json").exists()) {
     "No src/main/assets/$network.json: Tegami has no $network configuration. Only monad-testnet is supported."
 }
+// Privy (dashboard.privy.io): "Continue with Google" makes an embedded Monad wallet. Both IDs are public, not secrets;
+// pass them as -Ptegami.privyAppId / -Ptegami.privyClientId or put them in ~/.gradle/gradle.properties. Without them
+// the Google option is hidden. The Privy app *secret* is server-side only and never goes into the app.
+val privyAppId = providers.gradleProperty("tegami.privyAppId").getOrElse("")
+val privyClientId = providers.gradleProperty("tegami.privyClientId").getOrElse("")
 
 android {
     namespace = "com.tegami"
@@ -19,11 +25,13 @@ android {
 
     defaultConfig {
         applicationId = "com.tegami"
-        minSdk = 26 // java.time and java.util.Base64 without desugaring
+        minSdk = 28 // Privy embedded wallets need API 28
         targetSdk = 35
         versionCode = 2
         versionName = "0.2.0-monad-testnet"
         buildConfigField("String", "NETWORK", "\"$network\"")
+        buildConfigField("String", "PRIVY_APP_ID", "\"$privyAppId\"")
+        buildConfigField("String", "PRIVY_CLIENT_ID", "\"$privyClientId\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
@@ -45,7 +53,6 @@ android {
         compose = true
         buildConfig = true
     }
-    composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -72,8 +79,8 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-    implementation("io.ktor:ktor-client-core:2.3.12")
-    implementation("io.ktor:ktor-client-android:2.3.12")
+    implementation("io.ktor:ktor-client-core:3.0.3")
+    implementation("io.ktor:ktor-client-android:3.0.3")
 
     // EVM: keccak, secp256k1 signing/recovery, BIP-39/BIP-32 (Mera's derivation), ABI and EIP-1559 encoding.
     implementation("org.web3j:crypto:4.12.3")
@@ -81,9 +88,11 @@ dependencies {
     // Passkeys with the WebAuthn PRF extension (the Mera account model).
     implementation("androidx.credentials:credentials:1.5.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    // Privy: Google sign-in and an embedded wallet that signs statements and payments in-app.
+    implementation("io.privy:privy-core:0.16.0")
 
-    implementation("com.google.dagger:hilt-android:2.51.1")
-    kapt("com.google.dagger:hilt-compiler:2.51.1")
+    implementation("com.google.dagger:hilt-android:2.55")
+    kapt("com.google.dagger:hilt-compiler:2.55")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

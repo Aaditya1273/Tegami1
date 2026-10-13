@@ -82,8 +82,9 @@ On Monad, amounts, payers, invoices and notes are public. A statement keeps disc
 
 ```bash
 . scripts/toolchain.env                     # JDK 17 + Android SDK on PATH
-./gradlew testDebugUnitTest                 # 30 JVM tests (incl. mera + EIP-191 reference vectors)
+./gradlew testDebugUnitTest                 # 31 JVM tests (incl. mera + EIP-191 reference vectors)
 ./gradlew assembleDebug                     # app/build/outputs/apk/debug/app-debug.apk
+# Optional "Continue with Google" (Privy): add -Ptegami.privyAppId=… -Ptegami.privyClientId=… (public IDs)
 (cd contracts && forge test)                # 4 Foundry tests for TegamiSeal
 PASSKEY_RP_ID=tegami-monad.vercel.app scripts/monad_setup.sh   # deploy + seed (needs PRIVATE_KEY in .env.local)
 ```
@@ -95,7 +96,7 @@ PASSKEY_RP_ID=tegami-monad.vercel.app scripts/monad_setup.sh   # deploy + seed (
 | `contracts/src/TegamiSeal.sol` | `pay(token, to, amount, invoice, note)`: transferFrom + letter, one transaction; `letterCount`/`letterAt`; owner-kept payer registry |
 | `contracts/src/TestDollar.sol` | `tUSD`: minimal ERC-20 test dollar (no value) |
 | `app/…/evm` | Monad JSON-RPC (`eth_call` at `finalized`, logs, EIP-1559 send), ABI via web3j, EIP-191 sign/recover, mera derivation |
-| `app/…/data` | Passkey accounts (Credential Manager + PRF), letters, sealed payments |
+| `app/…/data` | Passkey accounts (Credential Manager + PRF), Google accounts (Privy embedded wallet), letters, sealed payments |
 | `app/…/proof` | Statement builder (minimal disclosure), codec (`tegami://verify?s=`), verifier |
 | `app/…/guardian` | Deterministic on-device rules; typed proposals; never acts on payment text |
 | `scripts/monad_setup.sh` | Deploys, registers test payers, sends real sealed payments |

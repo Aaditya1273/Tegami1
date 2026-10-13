@@ -28,7 +28,6 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var links: IncomingLinks
-    @Inject lateinit var metaMask: com.tegami.data.MetaMaskRepository
     private val session: SessionViewModel by viewModels()
     private val linkCount = mutableIntStateOf(0)
 
@@ -65,13 +64,11 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Accepts only tegami://verify?s=<token> (well-formed, size-capped) and tegami://metamask replies to the open
-     * MetaMask request; anything else is ignored.
+     * Accepts only tegami://verify?s=<token> (well-formed, size-capped); anything else is ignored.
      */
     private fun handle(intent: Intent?) {
         val uri = intent?.data ?: return
         if (intent.action != Intent.ACTION_VIEW || uri.scheme != "tegami") return
-        if (uri.host == "metamask") { metaMask.deliver(uri); return }
         if (uri.host != "verify") return
         val token = uri.getQueryParameter("s") ?: return
         if (StatementCodec.decode(token).isFailure) return

@@ -79,7 +79,6 @@ data class PayUi(
 class PayViewModel @Inject constructor(
     private val accounts: AccountRepository,
     private val payments: PaymentRepository,
-    private val metaMask: com.tegami.data.MetaMaskRepository,
     private val config: NetworkConfig,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(PayUi())
@@ -111,17 +110,12 @@ class PayViewModel @Inject constructor(
         }
         if (problem != null) { _ui.update { it.copy(formError = problem) }; return }
         val account = accounts.account.value ?: return
-        val viaMetaMask = account.kind == com.tegami.data.Account.Kind.MetaMask
-        _ui.update { it.copy(progress = if (viaMetaMask) "Approve in MetaMask…" else "Unlocking with your passkey…", error = null) }
+        val viaGoogle = account.kind == com.tegami.data.Account.Kind.Google
+        _ui.update { it.copy(progress = if (viaGoogle) "Signing with your Google wallet…" else "Unlocking with your passkey…", error = null) }
         viewModelScope.launch {
             try {
                 val sender: suspend (String, String) -> String =
-                    if (viaMetaMask) ({ to, data ->
-                        metaMask.sendTransaction(account.address, to, data,
-                            if (to.equals(config.sealContract, true)) "Pay ${u.amount} ${config.asset.symbol} to ${u.to.take(6)}…${u.to.takeLast(4)} and seal it"
-                            else "Allow the Tegami seal contract to send ${config.asset.symbol} for you (one time)")
-                    })
-                    else payments.passkeySender(accounts.signingKey(activity))
+                    if (viaGoogle) payments.privySender(account.address) else payments.passkeySender(accounts.signingKey(activity))
                 val tx = payments.pay(account.address, sender, u.to, amount!!, u.invoice.trim(), UntrustedText.sanitize(u.note)) { step ->
                     _ui.update { it.copy(progress = step) }
                 }
@@ -143,7 +137,7 @@ private fun mon(wei: BigInteger) = BigDecimal(wei).movePointLeft(18).setScale(4,
 fun PayScreen(
     config: NetworkConfig,
     address: String,
-    viaMetaMask: Boolean,
+    viaGoogle: Boolean,
     ui: PayUi,
     onTo: (String) -> Unit,
     onAmount: (String) -> Unit,
@@ -209,13 +203,13 @@ fun PayScreen(
         }
         ui.error?.let { Gap(8); ErrorBanner(it, onRetry = null) }
         Gap(16)
-        if (!viaMetaMask) {
+        if (!viaGoogle) {
             com.tegami.ui.components.SigningSessionChip(signingUnlocked, busy = ui.progress != null, onLock = onLockSigning)
             Gap(12)
         }
-        PrimaryButton(ui.progress ?: if (viaMetaMask) "Pay and seal with MetaMask" else "Pay and seal with passkey", loading = ui.progress != null, onClick = onSend)
+        PrimaryButton(ui.progress ?: if (viaGoogle) "Pay and seal with Google wallet" else "Pay and seal with passkey", loading = ui.progress != null, onClick = onSend)
         Gap(8)
-        FactLine(if (viaMetaMask) "MetaMask holds the key: it shows each transaction and you approve it there."
+        FactLine(if (viaGoogle) "Your Google account's Privy wallet signs in the app once you tap Pay; Tegami checks the signature, broadcasts and confirms on Monad."
             else "Your passkey unlocks the key on this phone; nothing is sent to a server. You approve the exact amount and recipient here.", Tone.Info)
         Gap(32)
     }

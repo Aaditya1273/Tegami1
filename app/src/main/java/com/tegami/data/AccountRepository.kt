@@ -36,9 +36,9 @@ import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** The address whose letters Tegami shows. Passkey and MetaMask accounts can sign; watch-only can't. */
+/** The address whose letters Tegami shows. Passkey and Google (Privy) accounts can sign; watch-only can't. */
 data class Account(val address: String, val label: String, val kind: Kind) {
-    enum class Kind { Passkey, MetaMask, WatchOnly }
+    enum class Kind { Passkey, Google, WatchOnly }
     val canSign: Boolean get() = kind != Kind.WatchOnly
 }
 
@@ -104,10 +104,10 @@ class AccountRepository @Inject constructor(
         return remember(prf, credentialId)
     }
 
-    /** A MetaMask account: MetaMask holds the key and approves every signature and payment itself. */
-    fun rememberMetaMask(address: String): Account {
+    /** A Google account: its Privy embedded wallet holds the key and signs on request. */
+    fun rememberGoogle(address: String): Account {
         lock()
-        return Account(EvmKeys.checksum(address), "MetaMask", Account.Kind.MetaMask).also {
+        return Account(EvmKeys.checksum(address), "Google · Privy wallet", Account.Kind.Google).also {
             prefs.edit().putString(KEY_ADDRESS, it.address).putString(KEY_LABEL, it.label)
                 .putString(KEY_KIND, it.kind.name).remove(KEY_CREDENTIAL).apply()
             _account.value = it

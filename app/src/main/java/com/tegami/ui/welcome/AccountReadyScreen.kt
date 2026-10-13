@@ -52,7 +52,7 @@ import com.tegami.ui.theme.Spacing
 import com.tegami.ui.theme.Tegami
 
 /** How the person just arrived; the account-ready moment words itself accordingly. */
-enum class Arrival { Created, Restored, MetaMask }
+enum class Arrival { Created, Restored, Google }
 
 /**
  * The account-ready moment, shown only after the repository has created or restored the account. The fox delivers
@@ -79,12 +79,12 @@ fun AccountReadyScreen(config: NetworkConfig, address: String, arrival: Arrival,
     val title = when (arrival) {
         Arrival.Created -> "Your Tegami account is ready."
         Arrival.Restored -> "Welcome back."
-        Arrival.MetaMask -> "MetaMask is connected."
+        Arrival.Google -> "Your Google wallet is ready."
     }
     val linked = when (arrival) {
         Arrival.Created -> "Linked to your passkey"
         Arrival.Restored -> "Restored from your passkey"
-        Arrival.MetaMask -> "Your MetaMask account"
+        Arrival.Google -> "Your Google account's Privy wallet"
     }
     Column(Modifier.fillMaxSize().background(c.canvas).statusBarsPadding().navigationBarsPadding()
         .verticalScroll(rememberScrollState()).padding(horizontal = Spacing.gutter),
@@ -118,7 +118,7 @@ fun AccountReadyScreen(config: NetworkConfig, address: String, arrival: Arrival,
         Column(Modifier.fillMaxWidth().graphicsLayer { alpha = facts.value }) {
             FactLine("Receive letters here: share this address with whoever pays you.", Tone.Info)
             when (arrival) {
-                Arrival.MetaMask -> FactLine("MetaMask holds the key and asks you to approve every signature and payment.", Tone.Info)
+                Arrival.Google -> FactLine("Privy keeps the key for your Google account: no seed phrase, no wallet app. Tegami asks before every signature and payment.", Tone.Info)
                 else -> {
                     FactLine("Sign income statements and payments with your fingerprint or screen lock.", Tone.Info)
                     FactLine("Your key isn't saved on this phone: your passkey recreates it when you sign.", Tone.Positive)

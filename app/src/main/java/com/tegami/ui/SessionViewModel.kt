@@ -47,7 +47,7 @@ class SessionViewModel @Inject constructor(
     private val disclosureLog: DisclosureLog,
     private val links: IncomingLinks,
     private val rpc: EvmRpc,
-    private val metaMask: com.tegami.data.MetaMaskRepository,
+    private val privy: com.tegami.data.PrivyWallet,
     val config: NetworkConfig,
 ) : ViewModel() {
     val account = accounts.account
@@ -106,16 +106,19 @@ class SessionViewModel @Inject constructor(
         }
     }
 
-    /** Connects MetaMask Mobile: it opens, the user approves, and Tegami switches it to Monad. */
-    fun connectMetaMask() = viewModelScope.launch {
+    /** Whether this build can offer "Continue with Google" (both public Privy IDs present). */
+    val googleAvailable: Boolean get() = privy.configured
+
+    /** Google sign-in through Privy: creates (once) or reopens the account's embedded Monad wallet. */
+    fun connectGoogle() = viewModelScope.launch {
         _connecting.value = true
         try {
-            accounts.rememberMetaMask(metaMask.connect())
-            _arrival.value = com.tegami.ui.welcome.Arrival.MetaMask
+            accounts.rememberGoogle(privy.connect())
+            _arrival.value = com.tegami.ui.welcome.Arrival.Google
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _messages.tryEmit(TegamiError.from(e).userMessage.let { m -> if (e is TegamiError.WalletRejected) "MetaMask: ${e.detail}" else m })
+            _messages.tryEmit(TegamiError.from(e).userMessage.let { m -> if (e is TegamiError.WalletRejected) "Google: ${e.detail}" else m })
         } finally {
             _connecting.value = false
         }
@@ -127,7 +130,10 @@ class SessionViewModel @Inject constructor(
 
     fun watchDemo(): String? = config.demoRecipient?.let { watch(it, "Demo freelancer (testnet)") } ?: "This build has no demo address."
 
-    fun disconnect() = accounts.disconnect()
+    fun disconnect() {
+        if (accounts.account.value?.kind == com.tegami.data.Account.Kind.Google) viewModelScope.launch { privy.logout() }
+        accounts.disconnect()
+    }
 
     fun loadMint() = viewModelScope.launch {
         _mint.value = MintState.Loading

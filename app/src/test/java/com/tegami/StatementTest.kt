@@ -138,4 +138,15 @@ class StatementTest {
         assertTrue(StatementCodec.decode("a".repeat(40_000)).isFailure)
         assertTrue(StatementCodec.decode("eyJmb28iOjF9").isFailure) // {"foo":1}
     }
+
+    /** PrivyWallet.signTransaction refuses a signed tx whose recovered sender isn't the account; this is that recovery. */
+    @Test fun signedEip1559SenderIsRecovered() {
+        val key = ECKeyPair.create(java.math.BigInteger.valueOf(0xC0FFEE))
+        val tx = org.web3j.crypto.RawTransaction.createTransaction(10143, java.math.BigInteger.ONE, java.math.BigInteger.valueOf(90_000),
+            Fixtures.STRANGER, java.math.BigInteger.ZERO, "0x", java.math.BigInteger.TWO, java.math.BigInteger.TEN)
+        val signed = Numeric.toHexString(org.web3j.crypto.TransactionEncoder.signMessage(tx, org.web3j.crypto.Credentials.create(key)))
+        val from = (org.web3j.crypto.TransactionDecoder.decode(signed) as org.web3j.crypto.SignedRawTransaction).from
+        assertTrue(EvmKeys.sameAddress(from, EvmKeys.address(key)))
+        assertFalse(EvmKeys.sameAddress(from, Fixtures.STRANGER))
+    }
 }

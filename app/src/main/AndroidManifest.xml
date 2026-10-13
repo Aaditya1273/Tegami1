@@ -35,12 +35,17 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="tegami" android:host="verify" />
             </intent-filter>
-            <!-- tegami://metamask?id=…: MetaMask's browser hands back a connect/sign/send result (verified in-app). -->
+        </activity>
+        <!-- Privy: Google sign-in returns here (tegami-privy://). -->
+        <activity
+            android:name="io.privy.sdk.oAuth.PrivyRedirectActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="tegami" android:host="metamask" />
+                <data android:scheme="tegami-privy" />
             </intent-filter>
         </activity>
     </application>

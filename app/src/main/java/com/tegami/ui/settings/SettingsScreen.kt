@@ -99,7 +99,7 @@ fun SettingsScreen(
                 Figure("Shared", disclosureCount, Modifier.weight(1f))
             }
             Gap(12)
-            Text(if (account.kind == com.tegami.data.Account.Kind.MetaMask) "MetaMask holds the key. Tegami asks, and you approve each signature and payment in MetaMask."
+            Text(if (account.kind == com.tegami.data.Account.Kind.Google) "Privy holds the key for your Google account. Tegami signs only when you tap Sign or Pay, and checks every signature before using it."
                 else if (account.canSign) "Your passkey is the key: Tegami derives the account from it when you sign and keeps nothing secret on the phone. Lose the passkey and the account is gone."
                 else "Read-only. Tegami can show letters for this address but can't sign anything for it.",
                 style = MaterialTheme.typography.bodyMedium, color = c.inkTertiary)

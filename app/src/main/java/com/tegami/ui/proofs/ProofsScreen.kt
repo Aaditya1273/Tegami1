@@ -234,10 +234,10 @@ private fun Review(draft: StatementDraft, step: SignStep, onEdit: () -> Unit, on
         SigningSessionChip(signingUnlocked, busy = step == SignStep.AwaitingWallet, onLock = onLockSigning)
         Gap(12)
     }
-    val viaMetaMask = kind == Account.Kind.MetaMask
+    val viaGoogle = kind == Account.Kind.Google
     PrimaryButton(when {
-            step == SignStep.AwaitingWallet -> if (viaMetaMask) "Waiting for MetaMask…" else "Waiting for your passkey…"
-            viaMetaMask -> "Sign in MetaMask"
+            step == SignStep.AwaitingWallet -> if (viaGoogle) "Signing with your Google wallet…" else "Waiting for your passkey…"
+            viaGoogle -> "Sign with Google wallet"
             signingUnlocked -> "Sign now (session open)"
             else -> "Sign with passkey"
         },
