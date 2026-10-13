@@ -58,9 +58,14 @@ Because the payer is `msg.sender`, "the payer signed this payment" is enforced b
 ## Security model
 
 - **Keys.**
-  - The account key is derived from the passkey's PRF output when needed and held only in memory during a signing session. It's dropped on sign-out or when the process dies.
+  - The account key is derived from the passkey's PRF output when needed and is never written to storage.
+  - A **signing session** keeps it in memory so a second signature needs no prompt. The session is shown as "Signing unlocked" on Proofs, Pay and Settings.
+  - The session closes when the person taps **Lock**, after 10 minutes, on sign-out, or when Android ends the process. Lock is hidden while a signature or payment is in flight.
+  - Locking drops Tegami's reference to the key; the JVM gives no guarantee the old copy is zeroed immediately.
   - Prefs store the address, a label and the credential id, none of them secret.
   - A different passkey can't sign for a saved account: the derived address must match.
+- **Passkey errors.** Credential Manager failures are classified (cancelled, timed out, no passkey, no PRF, other). People see plain language; the raw system text goes to the log only.
+- **MetaMask accounts.** MetaMask signs inside its own browser via `web/mm.html`. Results return by `tegami://metamask?id=…` and must match the open request id. Signatures are verified on the phone, and transactions are confirmed on Monad before they count.
 - **Passkey binding.** The rpId `tegami-monad.vercel.app` serves `/.well-known/assetlinks.json` listing the app's package and both signing certificates (debug and release). Android refuses passkeys for an rpId that doesn't vouch for the app.
 - **Statements.**
   - Each statement is bound to network, chain id, seal contract, token, recipient, period, verifier label, expiry (≤ 90 days) and a random nonce.
