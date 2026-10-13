@@ -4,6 +4,13 @@ import android.content.Intent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import com.tegami.ui.theme.Shapes
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -61,6 +68,8 @@ import com.tegami.ui.components.Gap
 import com.tegami.ui.components.FoxSays
 import com.tegami.ui.components.Pose
 import com.tegami.ui.components.PrimaryButton
+import com.tegami.ui.components.SectionLabel
+import com.tegami.ui.components.SendButton
 import com.tegami.ui.components.ScreenTitle
 import com.tegami.ui.components.SecondaryButton
 import com.tegami.ui.components.StatusPill
@@ -91,7 +100,8 @@ class GuardianViewModel @Inject constructor(
     private val letters: LetterRepository,
     private val log: DisclosureLog,
 ) : ViewModel() {
-    private val _turns = MutableStateFlow(listOf(Turn(0, false, Guardian.help().text, Guardian.help())))
+    // Starts empty: the screen's own introduction says what Guardian does, so the first turn doesn't repeat it.
+    private val _turns = MutableStateFlow(emptyList<Turn>())
     val turns: StateFlow<List<Turn>> = _turns
 
     private fun ctx() = GuardianContext(config, accounts.account.value?.address, letters.state.value.letters, LocalDate.now(ZoneOffset.UTC))
@@ -140,30 +150,42 @@ fun GuardianScreen(
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(horizontal = Spacing.gutter)) {
             item {
                 ScreenTitle("Guardian")
-                FoxSays(Pose.Guardian, "I explain your letters and prepare drafts. You approve everything; I can't sign or move money.",
-                    foxHeight = 128.dp)
-                Gap(12)
+                FoxSays(Pose.Guardian, "Ask me about your letters. I explain and prepare; you approve.", foxHeight = 112.dp)
+                Gap(10)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    StatusPill("On-device rules · no AI model", Tone.Info)
-                    StatusPill("Can't move money", Tone.Positive)
+                    StatusPill("Rules on this phone · no AI model", Tone.Info)
+                    StatusPill("Can't sign or move money", Tone.Positive)
                 }
-                Gap(12)
+                Gap(16)
+            }
+            if (turns.isEmpty()) {
+                item { SectionLabel("Start with") }
+                items(Guardian.SUGGESTIONS) { s -> SuggestionCard(s) { onAsk(s) }; Gap(8) }
             }
             items(turns, key = { it.id }) { t -> TurnView(t, onResolve, onOpenStatementDraft) { id, a -> reviewing = id to a } }
             item { Gap(12) }
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.gutter),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Guardian.SUGGESTIONS.forEach { s -> AssistChip(onClick = { onAsk(s) }, label = { Text(s) }) }
+        if (turns.isNotEmpty()) {
+            // During a conversation the suggestions stay one tap away, as an intentional sideways row from the gutter.
+            androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = Spacing.gutter),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(Guardian.SUGGESTIONS) { s ->
+                    Text(s, style = MaterialTheme.typography.labelLarge, color = c.ink, maxLines = 1,
+                        modifier = Modifier.heightIn(min = 40.dp).background(c.surface, Shapes.small).border(1.dp, c.border, Shapes.small)
+                            .clickable(role = Role.Button) { onAsk(s) }.padding(horizontal = 14.dp, vertical = 10.dp))
+                }
+            }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter, vertical = Spacing.compact), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = Spacing.gutter, end = Spacing.gutter, top = Spacing.compact, bottom = Spacing.compact),
+            verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
-                value = input, onValueChange = { input = it.take(500) }, placeholder = { Text("Ask Guardian") },
+                value = input, onValueChange = { input = it.take(500) }, placeholder = { Text("Ask Guardian about your letters") },
                 singleLine = true, modifier = Modifier.weight(1f),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { onAsk(input); input = "" }),
+                keyboardActions = KeyboardActions(onSend = { if (input.isNotBlank()) { onAsk(input); input = "" } }),
             )
-            TextAction("Send") { onAsk(input); input = "" }
+            Spacer(Modifier.width(Spacing.compact))
+            SendButton(enabled = input.isNotBlank(), onClick = { onAsk(input); input = "" })
         }
     }
 
@@ -189,6 +211,18 @@ fun GuardianScreen(
             },
             dismissButton = { TextAction("Cancel", color = c.inkSecondary) { reviewing = null } },
         )
+    }
+}
+
+/** A starting suggestion: a full-width card, so it fits any screen width and is easy to tap. */
+@Composable
+private fun SuggestionCard(text: String, onClick: () -> Unit) {
+    val c = Tegami.colors
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).background(c.surface, Shapes.standard).border(1.dp, c.divider, Shapes.standard)
+        .clickable(role = Role.Button, onClick = onClick).padding(horizontal = Spacing.standard, vertical = Spacing.related),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.weight(1f))
+        Text("›", style = MaterialTheme.typography.titleLarge, color = c.primary)
     }
 }
 

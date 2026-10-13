@@ -50,6 +50,7 @@ import com.tegami.ui.components.Glyph
 import com.tegami.ui.components.ErrorBanner
 import com.tegami.ui.components.Gap
 import com.tegami.ui.components.LetterCard
+import com.tegami.ui.components.payerName
 import com.tegami.ui.components.LoadingRow
 import com.tegami.ui.components.WelcomePanel
 import com.tegami.ui.components.NetworkBadge
@@ -109,8 +110,12 @@ fun HomeScreen(
             )
             Gap(14)
             // The fox says where things really stand; its pose follows the same state.
+            val arrived = state.letters.filter { it.id in state.newIds }
             val (pose, note) = when {
                 state.loading && state.letters.isEmpty() -> Pose.Read to "Reading your letters from ${config.networkLabel}…"
+                // Only after a real refresh found letters that weren't there before.
+                arrived.size == 1 -> Pose.Deliver to "A new letter from ${payerName(arrived[0].payer)} just arrived."
+                arrived.size > 1 -> Pose.Deliver to "${arrived.size} new letters just arrived."
                 state.letters.isEmpty() -> Pose.Deliver to "No letters yet. Payments to this address will land here."
                 attention > 0 -> Pose.Review to "$attention payment${if (attention == 1) " needs" else "s need"} a look before you rely on ${if (attention == 1) "it" else "them"}."
                 pending > 0 -> Pose.Read to "$pending payment${if (pending == 1) " isn't" else "s aren't"} final yet. I count only finalized ones."
@@ -177,16 +182,18 @@ fun HomeScreen(
                     Text("Pay  ›", style = MaterialTheme.typography.labelLarge, color = c.primary)
                 }
             }
-            // This week, below the money and the actions: a glance at how often income arrived.
+            // This week, below the money and the actions: a glance at how often income arrived, in its own panel.
             SectionLabel("This week")
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("$weekLetters", style = MaterialTheme.typography.headlineSmall, color = if (week.any { it.paid }) c.primary else c.ink)
-                Spacer(Modifier.width(Spacing.compact))
-                Text("${if (weekLetters == 1) "letter" else "letters"} · ${week.count { it.paid }} of 7 days brought counted income",
-                    style = MaterialTheme.typography.bodyMedium, color = c.inkSecondary)
+            Column(Modifier.fillMaxWidth().background(c.subtle, Shapes.standard).padding(Spacing.standard)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("$weekLetters", style = MaterialTheme.typography.headlineSmall, color = if (week.any { it.paid }) c.primary else c.ink)
+                    Spacer(Modifier.width(Spacing.compact))
+                    Text("${if (weekLetters == 1) "letter" else "letters"} · ${week.count { it.paid }} of 7 days brought counted income",
+                        style = MaterialTheme.typography.bodyMedium, color = c.inkSecondary)
+                }
+                Gap(12)
+                WeekStrip(week)
             }
-            Gap(10)
-            WeekStrip(week)
         }
         state.error?.let { e -> item { Gap(12); ErrorBanner(e, onRetry = onRefresh) } }
         item {
@@ -207,11 +214,11 @@ fun HomeScreen(
                 }
             }
             else -> itemsIndexed(state.letters.take(3), key = { _, l -> l.id }) { i, l ->
-                LetterCard(l, hideAmounts, i) { onOpenLetter(l.id) }
+                LetterCard(l, hideAmounts, i, isNew = l.id in state.newIds) { onOpenLetter(l.id) }
                 Gap(10)
             }
         }
-        item { Gap(24) }
+        item { Gap(40) } // clear of the tab bar
     }
 }
 

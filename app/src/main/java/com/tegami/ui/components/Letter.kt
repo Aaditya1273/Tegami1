@@ -16,9 +16,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -232,45 +235,63 @@ fun AmountText(amount: Money?, hidden: Boolean, style: androidx.compose.ui.text.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun LetterCard(letter: Letter, hideAmount: Boolean, index: Int = 0, onClick: () -> Unit) {
+fun LetterCard(letter: Letter, hideAmount: Boolean, index: Int = 0, isNew: Boolean = false, onClick: () -> Unit) {
     val c = Tegami.colors
     val reduced = LocalReducedMotion.current
     val enter = remember(letter.id) { Animatable(if (reduced) 1f else 0f) }
+    // A genuinely new letter (it arrived since the last read): a gold outline that glows once and fades.
+    val glow = remember(letter.id, isNew) { Animatable(if (isNew) 1f else 0f) }
     LaunchedEffect(letter.id) {
         if (!reduced) enter.animateTo(1f, tween(Motion.spatial, delayMillis = (index.coerceAtMost(8)) * Motion.stagger, easing = Motion.Emphasized))
     }
+    LaunchedEffect(letter.id, isNew) { if (isNew && !reduced) { kotlinx.coroutines.delay(900); glow.animateTo(0.25f, tween(1600)) } }
+    val attention = LetterRules.needsAttention(letter)
+    val registered = letter.payer is Payer.Registered
+    val invoice = when (val s = letter.seal) { is Seal.Sealed -> s.invoice; is Seal.Untrusted -> s.invoice; else -> null }
     val a11y = buildString {
+        if (isNew) append("New. ")
         append(payerName(letter.payer)); append(". ")
-        append(when { letter.amount == null -> "Amount encrypted"; hideAmount -> "Amount hidden"; else -> letter.amount.format() }); append(". ")
+        append(if (hideAmount) "Amount hidden" else letter.amount.format()); append(". ")
+        append(if (registered) "Registered payer. " else "Unregistered payer. ")
         append(settlementLabel(letter.settlement)); append(". ")
         append(sealLabel(letter.seal)); append(". ")
+        if (attention) append("Needs a look. ")
         append(letterTime(letter))
     }
     Row(
         Modifier.fillMaxWidth()
             .graphicsLayer { alpha = enter.value; translationY = (1f - enter.value) * 12.dp.toPx() }
             .background(c.surface, Shapes.standard)
-            .border(1.dp, c.border, Shapes.standard)
+            .border(if (glow.value > 0f) 2.dp else 1.dp,
+                if (glow.value > 0f) c.gold.copy(alpha = glow.value.coerceIn(0.25f, 1f)) else c.divider, Shapes.standard)
             .clickable(role = Role.Button, onClickLabel = "Open letter", onClick = onClick)
-            .heightIn(min = 76.dp)
-            .padding(horizontal = Spacing.standard, vertical = Spacing.related)
+            .heightIn(min = 84.dp)
+            .height(androidx.compose.foundation.layout.IntrinsicSize.Min)
             .semantics(mergeDescendants = true) { contentDescription = a11y },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SealMark(letter.seal, 36.dp)
+        // Needs-a-look letters carry a warning edge as well as a labelled capsule.
+        Box(Modifier.width(4.dp).fillMaxHeight().background(if (attention) c.warning else Color.Transparent,
+            RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp)))
         Spacer(Modifier.width(Spacing.related))
-        Column(Modifier.weight(1f)) {
+        SealMark(letter.seal, 40.dp)
+        Spacer(Modifier.width(Spacing.related))
+        Column(Modifier.weight(1f).padding(top = Spacing.related, bottom = Spacing.related, end = Spacing.standard)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(payerName(letter.payer), style = MaterialTheme.typography.titleMedium, color = c.ink, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(Spacing.compact))
                 AmountText(letter.amount, hideAmount, MaterialTheme.typography.titleMedium)
             }
-            Text(letterTime(letter), style = MaterialTheme.typography.bodyMedium, color = c.inkSecondary, maxLines = 1)
+            Text(listOfNotNull(if (registered) "Registered payer" else "Unregistered payer", invoice).joinToString(" · "),
+                style = MaterialTheme.typography.bodyMedium, color = if (registered) c.inkSecondary else c.warning,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.heightIn(min = 6.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (isNew) StatusPill("New", Tone.Seal)
                 StatusPill(settlementLabel(letter.settlement), settlementTone(letter.settlement))
-                if (LetterRules.needsAttention(letter)) StatusPill("Needs a look", Tone.Warning)
+                if (attention) StatusPill("! Needs a look", Tone.Warning)
+                Text(letterTime(letter), style = MaterialTheme.typography.labelMedium, color = c.inkTertiary, maxLines = 1)
             }
         }
     }

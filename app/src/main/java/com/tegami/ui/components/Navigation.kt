@@ -65,7 +65,7 @@ fun BottomBar(selected: Tab?, onSelect: (Tab) -> Unit) {
                     verticalArrangement = Arrangement.Center,
                 ) {
                     Box(Modifier.size(width = 52.dp, height = 30.dp).background(pill, RoundedCornerShape(15.dp)), contentAlignment = Alignment.Center) {
-                        val lift by animateFloatAsState(if (on) 1f else 0.55f, tween(Motion.control), label = "tabArt")
+                        val lift by animateFloatAsState(if (on) 1f else 0.8f, tween(Motion.control), label = "tabArt")
                         Image(painterResource(t.art), null, Modifier.size(24.dp).alpha(lift),
                             colorFilter = if (on) null else Quiet)
                     }

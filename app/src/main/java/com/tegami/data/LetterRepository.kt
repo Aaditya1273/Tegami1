@@ -30,6 +30,8 @@ data class LettersState(
     val error: TegamiError? = null,
     val canLoadMore: Boolean = false,
     val updatedAt: Instant? = null,
+    /** Letters that arrived since the previous read in this session (never set on the first read). */
+    val newIds: Set<String> = emptySet(),
 )
 
 /**
@@ -60,7 +62,9 @@ class LetterRepository @Inject constructor(
             val (letters, nextIndex) = loadPage(owner, count - 1)
             next = nextIndex
             _state.update {
-                it.copy(letters = letters, loading = false, canLoadMore = next >= 0, updatedAt = Instant.now())
+                val before = it.letters.map { l -> l.id }.toSet()
+                val arrived = if (before.isEmpty()) emptySet() else letters.map { l -> l.id }.toSet() - before
+                it.copy(letters = letters, loading = false, canLoadMore = next >= 0, updatedAt = Instant.now(), newIds = arrived)
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e

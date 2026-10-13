@@ -86,8 +86,8 @@ private fun InkButton(face: Color, pressedFace: Color, border: Color?, enabled: 
     val down = pressed && enabled
     val fill by animateColorAsState(if (down) pressedFace else face, tween(Motion.micro), label = "ink")
     val settle by animateFloatAsState(if (down && !reduced) 0.98f else 1f, tween(Motion.micro), label = "settle")
-    Row(modifier.fillMaxWidth().heightIn(min = 52.dp).scale(settle).background(fill, Shapes.standard)
-        .then(if (border != null) Modifier.border(1.dp, border, Shapes.standard) else Modifier)
+    Row(modifier.fillMaxWidth().heightIn(min = 52.dp).scale(settle).background(fill, Shapes.button)
+        .then(if (border != null) Modifier.border(1.dp, border, Shapes.button) else Modifier)
         .clickable(source, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
         .padding(horizontal = Spacing.standard), horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically, content = content)

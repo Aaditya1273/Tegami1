@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -196,7 +197,15 @@ fun VerifyScreen(config: NetworkConfig, ui: VerifyUi, onInput: (String) -> Unit,
                     Fox(if (r.verified) Pose.Verified else Pose.Review, 88.dp)
                     Spacer(Modifier.width(Spacing.related))
                     Text(if (r.verified) "Verified" else "Not verified", style = MaterialTheme.typography.headlineSmall,
-                        color = if (r.verified) c.positive else c.danger)
+                        color = if (r.verified) c.positive else c.danger, modifier = Modifier.weight(1f))
+                    // The seal is earned: it stamps only when every check passed, never on a failure.
+                    if (r.verified) {
+                        val stamp = androidx.compose.runtime.remember(r) { androidx.compose.animation.core.Animatable(if (reduced) 1f else 0f) }
+                        LaunchedEffect(r) { if (!reduced) { kotlinx.coroutines.delay(200); stamp.animateTo(1f, Motion.stamp) } }
+                        com.tegami.ui.components.ArtIcon(com.tegami.R.drawable.art_seal, 56.dp, Modifier.graphicsLayer {
+                            val k = 1.6f - 0.6f * stamp.value; scaleX = k; scaleY = k; alpha = stamp.value.coerceIn(0f, 1f)
+                        })
+                    }
                 }
                 Gap(6)
                 Text(

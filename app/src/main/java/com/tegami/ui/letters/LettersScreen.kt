@@ -3,6 +3,8 @@ package com.tegami.ui.letters
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +32,8 @@ import com.tegami.domain.Seal
 import com.tegami.ui.components.ErrorBanner
 import com.tegami.ui.components.Gap
 import com.tegami.ui.components.LetterCard
+import com.tegami.ui.components.SearchField
+import com.tegami.ui.components.FilterRow
 import com.tegami.ui.components.LoadingRow
 import com.tegami.ui.components.MessageState
 import com.tegami.ui.components.ScreenTitle
@@ -67,32 +71,27 @@ fun LettersScreen(
             l.id.lowercase().startsWith(q) || (l.seal as? Seal.Sealed)?.invoice?.lowercase()?.contains(q) == true ||
             (l.seal as? Seal.Untrusted)?.invoice?.lowercase()?.contains(q) == true
     }
-    LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = Spacing.gutter)) {
+    val g = Modifier.padding(horizontal = Spacing.gutter)
+    // Bottom padding so the last letter scrolls fully clear of the tab bar.
+    LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(bottom = Spacing.section)) {
         item {
-            ScreenTitle("Letters") { TextAction(if (state.loading) "Updating…" else "Refresh", onClick = onRefresh) }
-            OutlinedTextField(
-                value = query, onValueChange = { query = it.take(64) }, singleLine = true,
-                placeholder = { Text("Search payer, invoice or signature") },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            ScreenTitle("Letters", g) { TextAction(if (state.loading) "Updating…" else "Refresh", onClick = onRefresh) }
+            SearchField(query, { query = it.take(64) }, "Search payer, invoice or address", g)
+            Gap(10)
+        }
+        item {
+            FilterRow(LetterFilter.entries, filter, label = { it.label }, count = { f -> state.letters.count(f.matches) }, onSelect = { filter = it })
+        }
+        item {
+            Column(g) {
             Gap(8)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LetterFilter.entries.forEach { f ->
-                    val count = state.letters.count(f.matches)
-                    FilterChip(
-                        selected = filter == f, onClick = { filter = f },
-                        label = { Text("${f.label} · $count") },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = c.primaryTint, selectedLabelColor = c.primary),
-                    )
-                }
-            }
             state.updatedAt?.let {
                 Text("Read from ${config.networkLabel} at ${it.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))}",
                     style = MaterialTheme.typography.bodyMedium, color = c.inkTertiary)
             }
             Gap(12)
             state.error?.let { ErrorBanner(it, onRetry = onRefresh); Gap(12) }
+            }
         }
         when {
             state.loading && state.letters.isEmpty() -> item { LoadingRow("Reading letters…") }
@@ -101,11 +100,14 @@ fun LettersScreen(
                 else MessageState("Nothing matches", "Try another filter or search.", action = "Clear") { filter = LetterFilter.All; query = "" }
             }
             else -> itemsIndexed(shown, key = { _, l -> l.id }) { i, l ->
-                LetterCard(l, hideAmounts, i) { onOpen(l.id) }
-                Gap(10)
+                Column(g) {
+                    LetterCard(l, hideAmounts, i, isNew = l.id in state.newIds) { onOpen(l.id) }
+                    Gap(10)
+                }
             }
         }
         item {
+            Column(g) {
             when {
                 state.loadingMore -> LoadingRow("Reading older letters…")
                 state.canLoadMore -> SecondaryButton("Load older letters", onClick = onLoadMore)
@@ -113,6 +115,7 @@ fun LettersScreen(
                     color = c.inkTertiary, modifier = Modifier.fillMaxWidth())
             }
             Gap(24)
+            }
         }
     }
 }

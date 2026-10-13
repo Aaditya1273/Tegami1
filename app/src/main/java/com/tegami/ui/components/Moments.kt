@@ -284,3 +284,22 @@ fun SigningSessionChip(unlocked: Boolean, busy: Boolean, onLock: () -> Unit, mod
         if (unlocked && !busy) TextAction("Lock", onClick = onLock)
     }
 }
+
+/** A working-screen notice: a small fox beside one line and one action, so the task stays the focus. */
+@Composable
+fun CompactPanel(pose: Pose, title: String, body: String, action: String, onAction: () -> Unit) {
+    val c = Tegami.colors
+    Column(Modifier.fillMaxWidth().background(c.surface, Shapes.standard).border(1.dp, c.divider, Shapes.standard).padding(Spacing.standard)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Fox(pose, 76.dp)
+            Spacer(Modifier.width(Spacing.related))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = c.ink)
+                Spacer(Modifier.height(2.dp))
+                Text(body, style = MaterialTheme.typography.bodyMedium, color = c.inkSecondary)
+            }
+        }
+        Spacer(Modifier.height(Spacing.related))
+        PrimaryButton(action, onClick = onAction)
+    }
+}

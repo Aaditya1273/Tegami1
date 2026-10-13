@@ -123,10 +123,21 @@ object Spacing {
     val gutter = 20.dp
 }
 
+/**
+ * One corner scale for the whole app. Each element gets the radius of its role, so a filter, a field, a card and
+ * the hero differ in size but read as one family.
+ */
 object Shapes {
-    val small = RoundedCornerShape(10.dp)
-    val standard = RoundedCornerShape(16.dp)
-    val large = RoundedCornerShape(22.dp)
+    /** Filters, choice slips, compact chips. */
+    val small = RoundedCornerShape(12.dp)
+    /** Text fields, the search field, buttons. */
+    val field = RoundedCornerShape(16.dp)
+    val button = field
+    /** Cards and panels. */
+    val standard = RoundedCornerShape(20.dp)
+    /** The hero card and full-width moments. */
+    val large = RoundedCornerShape(26.dp)
+    /** Status capsules only. */
     val pill = RoundedCornerShape(50)
 }
 
@@ -219,6 +230,9 @@ fun TegamiTheme(reducedMotion: Boolean = false, content: @Composable () -> Unit)
             surfaceContainerHigh = c.raised, surfaceContainer = c.surface)
     }
     CompositionLocalProvider(LocalTegamiColors provides c, LocalReducedMotion provides (systemReduced || reducedMotion)) {
-        MaterialTheme(colorScheme = scheme, typography = TegamiTypography, content = content)
+        // Material components (text fields, dialogs) follow the same corner scale as Tegami's own.
+        MaterialTheme(colorScheme = scheme, typography = TegamiTypography, content = content,
+            shapes = androidx.compose.material3.Shapes(extraSmall = Shapes.field, small = Shapes.small, medium = Shapes.standard,
+                large = Shapes.large, extraLarge = RoundedCornerShape(28.dp)))
     }
 }

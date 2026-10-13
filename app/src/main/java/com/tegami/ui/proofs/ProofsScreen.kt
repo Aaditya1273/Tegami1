@@ -43,6 +43,8 @@ import com.tegami.data.Disclosure
 import com.tegami.proof.StatementDraft
 import com.tegami.ui.components.Card
 import com.tegami.ui.components.ChoiceTiles
+import com.tegami.ui.components.CompactPanel
+import com.tegami.ui.components.StepHeader
 import com.tegami.ui.components.SigningSessionChip
 import com.tegami.ui.components.CardHeader
 import com.tegami.ui.components.Expandable
@@ -104,6 +106,11 @@ fun ProofsScreen(
             ui.review != null -> 1
             else -> 0
         }
+        // Where you are in the real flow: claim → review → sign & share. Watch-only accounts can't sign, so no steps.
+        if (account.canSign) {
+            StepHeader(listOf("Claim", "Review", "Sign & share"), stage)
+            Gap(16)
+        }
         AnimatedContent(stage, label = "proofStage", transitionSpec = {
             fadeIn(tween(if (reduced) Motion.micro else Motion.screen)) togetherWith fadeOut(tween(Motion.micro))
         }) { s ->
@@ -154,8 +161,9 @@ private fun Form(
     }
     Gap(16)
     if (!account.canSign) {
-        WelcomePanel("Signing needs your passkey", "You're watching this address. Sign in with its passkey to sign a statement.",
-            "Sign in with a passkey", Pose.Official, onAction = onConnectWallet)
+        CompactPanel(Pose.Official, "Signing needs your passkey",
+            "You're watching this address. Sign in with its passkey to prepare and sign a statement.",
+            "Sign in with a passkey", onConnectWallet)
         return
     }
     OutlinedTextField(
