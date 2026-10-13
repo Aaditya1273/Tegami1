@@ -1,88 +1,93 @@
 package com.tegami.data
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import com.tegami.config.NetworkConfig
 import com.tegami.domain.TegamiError
 import com.tegami.evm.EvmKeys
 import dagger.hilt.android.qualifiers.ApplicationContext
-import io.metamask.androidsdk.DappMetadata
-import io.metamask.androidsdk.Ethereum
-import io.metamask.androidsdk.EthereumFlow
-import io.metamask.androidsdk.EthereumRequest
-import io.metamask.androidsdk.Result
-import io.metamask.androidsdk.SDKOptions
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
+import java.security.SecureRandom
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * MetaMask Mobile as an account: Tegami asks, MetaMask shows the request and the user approves it there.
- * Keys never leave MetaMask. Every signature MetaMask returns is checked locally, and transactions are
- * confirmed against Tegami's own RPC, so a misbehaving wallet can't fake a result.
+ * MetaMask Mobile as an account. MetaMask 8.x signs inside its own dapp browser (the native SDK's service is
+ * gone), so Tegami opens web/mm.html on its own domain there via MetaMask's deep link; the page asks MetaMask to
+ * connect, sign or send, and returns the result with a `tegami://metamask?id=…` link.
+ *
+ * Nothing returned is trusted on its own: each reply must carry the one-time request id, signatures are verified
+ * on the phone, and transactions are confirmed against Monad by [PaymentRepository]. Keys never leave MetaMask.
  */
 @Singleton
 class MetaMaskRepository @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     private val config: NetworkConfig,
 ) {
     private val chainHex = "0x" + config.chainId.toString(16)
-    private val ethereum by lazy {
-        EthereumFlow(Ethereum(context, DappMetadata("Tegami", "https://${config.passkeyRpId ?: "tegami-monad.vercel.app"}"),
-            SDKOptions("", mapOf(chainHex to config.rpcUrl))))
+    private var pending: Pair<String, CompletableDeferred<Uri>>? = null
+
+    /** Called by MainActivity for `tegami://metamask` links. Ignores replies that don't match the open request. */
+    fun deliver(uri: Uri): Boolean {
+        val (id, waiter) = pending ?: return false
+        if (uri.getQueryParameter("id") != id) return false
+        pending = null
+        return waiter.complete(uri)
     }
 
-    /** Opens MetaMask to approve the connection; returns the selected account, on Monad. */
+    /** Connects MetaMask and proves ownership: MetaMask signs a one-time challenge that must recover to the address. */
     suspend fun connect(): String {
-        val address = when (val r = ethereum.connect()) {
-            is Result.Success.Item -> r.value
-            is Result.Success.Items -> r.value.firstOrNull()
-            is Result.Error -> throw TegamiError.WalletRejected(r.error.message)
-            else -> null
-        }?.takeIf(EvmKeys::isAddress) ?: ethereum.selectedAddress.takeIf(EvmKeys::isAddress)
-            ?: throw TegamiError.WalletRejected("MetaMask returned no account")
-        ensureMonad()
+        val nonce = randomId()
+        val challenge = "Connect MetaMask to Tegami on ${config.networkLabel}.\nThis signature costs nothing and moves no money.\nNonce: $nonce"
+        val reply = roundTrip("connect", mapOf("msg" to challenge), nonce)
+        val address = reply.getQueryParameter("address")?.takeIf(EvmKeys::isAddress) ?: throw TegamiError.WalletRejected("MetaMask returned no account")
+        val sig = reply.getQueryParameter("sig") ?: throw TegamiError.WalletRejected("MetaMask returned no signature")
+        if (!EvmKeys.verifyPersonal(address, challenge, sig)) throw TegamiError.WalletRejected("the connection signature did not verify")
         return EvmKeys.checksum(address)
-    }
-
-    /** Switches MetaMask to Monad, adding the network first if MetaMask doesn't know it. */
-    private suspend fun ensureMonad() {
-        if (ethereum.chainId.equals(chainHex, ignoreCase = true)) return
-        val switched = ethereum.sendRequest(EthereumRequest(method = "wallet_switchEthereumChain", params = listOf(mapOf("chainId" to chainHex))))
-        if (switched !is Result.Error) return
-        val added = ethereum.sendRequest(EthereumRequest(method = "wallet_addEthereumChain", params = listOf(mapOf(
-            "chainId" to chainHex,
-            "chainName" to config.networkLabel,
-            "rpcUrls" to listOf(config.rpcUrl),
-            "blockExplorerUrls" to listOf(config.explorerUrl),
-            "nativeCurrency" to mapOf("name" to "MON", "symbol" to "MON", "decimals" to 18),
-        ))))
-        if (added is Result.Error) throw TegamiError.WalletRejected("MetaMask didn't switch to ${config.networkLabel}: ${added.error.message}")
     }
 
     /** EIP-191 `personal_sign` in MetaMask; the signature must recover to [address] or it is rejected. */
     suspend fun personalSign(address: String, message: String): String {
-        ensureMonad()
-        val hexMessage = "0x" + message.toByteArray(Charsets.UTF_8).joinToString("") { "%02x".format(it) }
-        val sig = when (val r = ethereum.sendRequest(EthereumRequest(method = "personal_sign", params = listOf(hexMessage, address)))) {
-            is Result.Success.Item -> r.value
-            is Result.Error -> throw TegamiError.WalletRejected(r.error.message)
-            else -> throw TegamiError.WalletRejected("no signature returned")
-        }
+        val reply = roundTrip("sign", mapOf("msg" to message, "from" to address))
+        val sig = reply.getQueryParameter("sig") ?: throw TegamiError.WalletRejected("MetaMask returned no signature")
         if (!EvmKeys.verifyPersonal(address, message, sig)) throw TegamiError.WalletRejected("the signature did not verify")
         return sig
     }
 
-    /** `eth_sendTransaction` in MetaMask (MetaMask sets gas and nonce); returns the transaction hash. */
-    suspend fun sendTransaction(from: String, to: String, data: String): String {
-        ensureMonad()
-        val r = ethereum.sendRequest(EthereumRequest(method = "eth_sendTransaction",
-            params = listOf(mapOf("from" to from, "to" to to, "value" to "0x0", "data" to data))))
-        return when (r) {
-            is Result.Success.Item -> r.value.takeIf { it.startsWith("0x") && it.length == 66 }
-                ?: throw TegamiError.WalletRejected("MetaMask returned no transaction hash")
-            is Result.Error -> throw TegamiError.WalletRejected(r.error.message)
-            else -> throw TegamiError.WalletRejected("MetaMask returned no transaction hash")
-        }
+    /** `eth_sendTransaction` in MetaMask (MetaMask sets gas and nonce). Returns the hash; the caller confirms it on-chain. */
+    suspend fun sendTransaction(from: String, to: String, data: String, label: String): String {
+        val reply = roundTrip("send", mapOf("from" to from, "to" to to, "data" to data, "label" to label))
+        return reply.getQueryParameter("hash")?.takeIf { Regex("^0x[0-9a-fA-F]{64}$").matches(it) }
+            ?: throw TegamiError.WalletRejected("MetaMask returned no transaction hash")
     }
 
-    fun disconnect() = runCatching { ethereum.disconnect(true) }
+    private suspend fun roundTrip(op: String, params: Map<String, String>, id: String = randomId()): Uri {
+        val waiter = CompletableDeferred<Uri>()
+        pending = id to waiter
+        val query = (params + mapOf("op" to op, "id" to id, "chain" to chainHex, "chainName" to config.networkLabel,
+            "rpc" to config.rpcUrl, "explorer" to config.explorerUrl))
+            .entries.joinToString("&") { "${it.key}=${Uri.encode(it.value)}" }
+        val host = config.passkeyRpId ?: throw TegamiError.Invalid("This build has no MetaMask bridge page.")
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://metamask.app.link/dapp/$host/mm.html?$query"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent.setPackage("io.metamask")) }
+            .getOrElse { pending = null; throw TegamiError.Invalid("Install MetaMask to use it with Tegami.") }
+        val reply = try {
+            withTimeout(TIMEOUT_MS) { waiter.await() }
+        } catch (e: TimeoutCancellationException) {
+            pending = null
+            throw TegamiError.WalletRejected("no answer from MetaMask")
+        }
+        reply.getQueryParameter("error")?.let { throw TegamiError.WalletRejected(it.take(160)) }
+        return reply
+    }
+
+    private fun randomId() = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+
+    private companion object {
+        const val TIMEOUT_MS = 180_000L // time for the person to approve in MetaMask
+    }
 }

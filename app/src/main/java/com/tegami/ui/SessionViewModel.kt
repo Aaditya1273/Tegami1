@@ -116,10 +116,7 @@ class SessionViewModel @Inject constructor(
 
     fun watchDemo(): String? = config.demoRecipient?.let { watch(it, "Demo freelancer (testnet)") } ?: "This build has no demo address."
 
-    fun disconnect() {
-        if (accounts.account.value?.kind == com.tegami.data.Account.Kind.MetaMask) metaMask.disconnect()
-        accounts.disconnect()
-    }
+    fun disconnect() = accounts.disconnect()
 
     fun loadMint() = viewModelScope.launch {
         _mint.value = MintState.Loading

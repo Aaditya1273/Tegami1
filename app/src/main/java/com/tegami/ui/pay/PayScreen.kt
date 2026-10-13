@@ -116,7 +116,11 @@ class PayViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val sender: suspend (String, String) -> String =
-                    if (viaMetaMask) ({ to, data -> metaMask.sendTransaction(account.address, to, data) })
+                    if (viaMetaMask) ({ to, data ->
+                        metaMask.sendTransaction(account.address, to, data,
+                            if (to.equals(config.sealContract, true)) "Pay ${u.amount} ${config.asset.symbol} to ${u.to.take(6)}…${u.to.takeLast(4)} and seal it"
+                            else "Allow the Tegami seal contract to send ${config.asset.symbol} for you (one time)")
+                    })
                     else payments.passkeySender(accounts.signingKey(activity))
                 val tx = payments.pay(account.address, sender, u.to, amount!!, u.invoice.trim(), UntrustedText.sanitize(u.note)) { step ->
                     _ui.update { it.copy(progress = step) }
