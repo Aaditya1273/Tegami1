@@ -100,13 +100,13 @@ fun PrimaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolean 
                   onClick: () -> Unit) {
     val c = Tegami.colors
     val on = enabled && !loading
-    InkButton(if (on) c.primary else c.subtle, c.primaryPressed, null, on,
+    InkButton(if (on) c.action else c.subtle, c.primaryPressed, null, on,
         modifier.semantics { if (loading) stateDescription = "Working" }, onClick) {
         if (loading) {
             CircularProgressIndicator(Modifier.size(16.dp), color = c.ink, strokeWidth = 2.dp)
             Spacer(Modifier.width(Spacing.related))
         }
-        Text(text, style = ButtonLabel, color = when { on -> c.onPrimary; loading -> c.ink; else -> c.inkTertiary })
+        Text(text, style = ButtonLabel, color = when { on -> c.onAction; loading -> c.ink; else -> c.inkTertiary })
     }
 }
 
@@ -245,7 +245,7 @@ fun ToggleRow(title: String, body: String, checked: Boolean, onChange: (Boolean)
         }
         Spacer(Modifier.width(Spacing.standard))
         Switch(checked = checked, onCheckedChange = null,
-            colors = SwitchDefaults.colors(checkedTrackColor = c.primary, checkedThumbColor = c.onPrimary))
+            colors = SwitchDefaults.colors(checkedTrackColor = c.action, checkedThumbColor = c.onAction))
     }
 }
 
@@ -268,13 +268,26 @@ fun MessageState(title: String, body: String, modifier: Modifier = Modifier, act
 @Composable
 fun ErrorBanner(error: TegamiError, onRetry: (() -> Unit)?, modifier: Modifier = Modifier) {
     val c = Tegami.colors
+    // A cancellation is the person's choice, not a failure: shown calmly, without the danger colour or mark.
+    val calm = error.isCancellation
+    val fg = if (calm) c.inkSecondary else c.danger
     Row(
-        modifier.fillMaxWidth().background(c.dangerTint, Shapes.standard).padding(horizontal = Spacing.standard, vertical = Spacing.compact)
+        modifier.fillMaxWidth().background(if (calm) c.subtle else c.dangerTint, Shapes.standard)
+            .padding(horizontal = Spacing.standard, vertical = Spacing.compact)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(error.userMessage, style = MaterialTheme.typography.bodyMedium, color = c.danger, modifier = Modifier.weight(1f))
-        if (onRetry != null) TextAction("Retry", color = c.danger, onClick = onRetry)
+        if (!calm) {
+            // A mark as well as a colour, so the state never depends on colour alone.
+            Canvas(Modifier.size(14.dp)) {
+                val w = 2.dp.toPx()
+                drawLine(fg, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, size.height), w, StrokeCap.Round)
+                drawLine(fg, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(0f, size.height), w, StrokeCap.Round)
+            }
+            Spacer(Modifier.width(Spacing.related))
+        }
+        Text(error.userMessage, style = MaterialTheme.typography.bodyMedium, color = fg, modifier = Modifier.weight(1f))
+        if (onRetry != null) TextAction(if (calm) "Try again" else "Retry", color = if (calm) c.primary else c.danger, onClick = onRetry)
     }
 }
 
@@ -366,11 +379,11 @@ fun <T> ChoiceTiles(options: List<T>, selected: T?, columns: Int, label: (T) -> 
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.compact)) {
                 row.forEach { o ->
                     val on = o == selected
-                    val fill by animateColorAsState(if (on) c.primary else c.surface, tween(Motion.control), label = "slipFill")
-                    val ink by animateColorAsState(if (on) c.onPrimary else c.ink, tween(Motion.control), label = "slipInk")
+                    val fill by animateColorAsState(if (on) c.action else c.surface, tween(Motion.control), label = "slipFill")
+                    val ink by animateColorAsState(if (on) c.onAction else c.ink, tween(Motion.control), label = "slipInk")
                     Box(Modifier.weight(1f).heightIn(min = 48.dp)
                         .background(fill, Shapes.small)
-                        .border(1.dp, if (on) c.primary else c.border, Shapes.small)
+                        .border(1.dp, if (on) c.action else c.border, Shapes.small)
                         .selectable(on, role = Role.RadioButton) { if (!on) com.tegami.ui.theme.Haptics.tick(view); onSelect(o) }
                         .padding(horizontal = Spacing.compact, vertical = 10.dp),
                         contentAlignment = Alignment.Center) {

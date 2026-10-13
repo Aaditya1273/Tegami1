@@ -88,7 +88,6 @@ fun HomeScreen(
     val verified = IncomeRules.availableTotal(state.letters, from, today, config.asset.decimals, config.asset.symbol)
     val counted = state.letters.count { IncomeRules.qualifies(it) && IncomeRules.inPeriod(it, from, today) }
     val attention = state.letters.count(LetterRules::needsAttention)
-    val encrypted = state.letters.count { it.amount == null }
     val pending = state.letters.count { it.settlement == Settlement.Confirmed }
 
     val week = weekOf(state.letters, today)
@@ -120,17 +119,6 @@ fun HomeScreen(
             }
             FoxSays(pose, note)
             Gap(18)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("$weekLetters", style = MaterialTheme.typography.displayMedium, color = if (week.any { it.paid }) c.primary else c.ink)
-                Spacer(Modifier.width(Spacing.related))
-                Column {
-                    Text(if (weekLetters == 1) "letter this week" else "letters this week", style = MaterialTheme.typography.titleMedium, color = c.ink)
-                    Text("${week.count { it.paid }} of 7 days brought counted income", style = MaterialTheme.typography.bodyMedium, color = c.inkTertiary)
-                }
-            }
-            Gap(12)
-            WeekStrip(week)
-            Gap(20)
         }
         item {
             HeroCard("Verified income · 30 days", trailing = {
@@ -150,10 +138,7 @@ fun HomeScreen(
                         state.loading && state.letters.isEmpty() -> "Reading payments from ${config.networkLabel}…"
                         counted == 0 -> "No finalized payments from registered payers yet."
                         else -> "From $counted finalized payment${if (counted == 1) "" else "s"} by registered payers."
-                    } + listOfNotNull(
-                        pending.takeIf { it > 0 }?.let { " $it not final yet." },
-                        encrypted.takeIf { it > 0 }?.let { " $it encrypted, not counted." },
-                    ).joinToString(""),
+                    } + (pending.takeIf { it > 0 }?.let { " $it not final yet." } ?: ""),
                     style = MaterialTheme.typography.bodyMedium, color = c.onHero.copy(alpha = 0.8f),
                 )
                 Gap(20)
@@ -162,20 +147,6 @@ fun HomeScreen(
                     counted > 0 -> HeroButton("Prepare an income statement  →", onClick = onPrepareStatement)
                     else -> Text("Statements unlock once a registered payer's payment is final.",
                         style = MaterialTheme.typography.titleMedium, color = c.onHero)
-                }
-            }
-            if (account.canSign) {
-                Gap(12)
-                Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).background(c.surface, Shapes.standard).border(1.dp, c.border, Shapes.standard)
-                    .clickable(role = Role.Button, onClick = onPay).padding(horizontal = Spacing.standard, vertical = Spacing.related),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    IconTile(Glyph.Envelope, Tone.Info, size = 40.dp)
-                    Spacer(Modifier.width(Spacing.related))
-                    Column(Modifier.weight(1f)) {
-                        Text("Send a sealed payment", style = MaterialTheme.typography.titleMedium, color = c.ink)
-                        Text("Pay anyone, anywhere, with an invoice attached", style = MaterialTheme.typography.bodyMedium, color = c.inkSecondary)
-                    }
-                    Text("Pay  ›", style = MaterialTheme.typography.labelLarge, color = c.primary)
                 }
             }
             if (attention > 0) {
@@ -192,6 +163,30 @@ fun HomeScreen(
                     Text("Review  ›", style = MaterialTheme.typography.labelLarge, color = c.primary)
                 }
             }
+            if (account.canSign) {
+                Gap(12)
+                Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).background(c.surface, Shapes.standard).border(1.dp, c.border, Shapes.standard)
+                    .clickable(role = Role.Button, onClick = onPay).padding(horizontal = Spacing.standard, vertical = Spacing.related),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    IconTile(Glyph.Envelope, Tone.Info, size = 40.dp)
+                    Spacer(Modifier.width(Spacing.related))
+                    Column(Modifier.weight(1f)) {
+                        Text("Send a sealed payment", style = MaterialTheme.typography.titleMedium, color = c.ink)
+                        Text("Pay anyone, anywhere, with an invoice attached", style = MaterialTheme.typography.bodyMedium, color = c.inkSecondary)
+                    }
+                    Text("Pay  ›", style = MaterialTheme.typography.labelLarge, color = c.primary)
+                }
+            }
+            // This week, below the money and the actions: a glance at how often income arrived.
+            SectionLabel("This week")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("$weekLetters", style = MaterialTheme.typography.headlineSmall, color = if (week.any { it.paid }) c.primary else c.ink)
+                Spacer(Modifier.width(Spacing.compact))
+                Text("${if (weekLetters == 1) "letter" else "letters"} · ${week.count { it.paid }} of 7 days brought counted income",
+                    style = MaterialTheme.typography.bodyMedium, color = c.inkSecondary)
+            }
+            Gap(10)
+            WeekStrip(week)
         }
         state.error?.let { e -> item { Gap(12); ErrorBanner(e, onRetry = onRefresh) } }
         item {

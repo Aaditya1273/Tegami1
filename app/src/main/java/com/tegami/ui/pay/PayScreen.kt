@@ -153,6 +153,8 @@ fun PayScreen(
     onLoad: () -> Unit,
     onAnother: () -> Unit,
     onBack: () -> Unit,
+    signingUnlocked: Boolean = false,
+    onLockSigning: () -> Unit = {},
 ) {
     val c = Tegami.colors
     val ctx = LocalContext.current
@@ -207,6 +209,10 @@ fun PayScreen(
         }
         ui.error?.let { Gap(8); ErrorBanner(it, onRetry = null) }
         Gap(16)
+        if (!viaMetaMask) {
+            com.tegami.ui.components.SigningSessionChip(signingUnlocked, busy = ui.progress != null, onLock = onLockSigning)
+            Gap(12)
+        }
         PrimaryButton(ui.progress ?: if (viaMetaMask) "Pay and seal with MetaMask" else "Pay and seal with passkey", loading = ui.progress != null, onClick = onSend)
         Gap(8)
         FactLine(if (viaMetaMask) "MetaMask holds the key: it shows each transaction and you approve it there."

@@ -73,7 +73,7 @@ fun WelcomeScreen(
             style = MaterialTheme.typography.bodyLarge, color = c.inkSecondary, modifier = Modifier.fillMaxWidth(),
         )
         Gap(28)
-        PrimaryButton("Create account with a passkey", loading = connecting, onClick = onConnect)
+        PrimaryButton(if (connecting) "Waiting for your passkey…" else "Create account with a passkey", loading = connecting, onClick = onConnect)
         Gap(8)
         Text("Your fingerprint or face unlocks it. No seed phrase, no wallet app: the key comes from your passkey and is never stored.",
             style = MaterialTheme.typography.bodyMedium, color = c.inkTertiary, modifier = Modifier.fillMaxWidth())

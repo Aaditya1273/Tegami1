@@ -12,9 +12,16 @@ import androidx.credentials.exceptions.CreateCredentialCancellationException
 import androidx.credentials.exceptions.CreateCredentialException
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.tegami.config.NetworkConfig
 import com.tegami.domain.TegamiError
 import com.tegami.evm.EvmKeys
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
@@ -48,6 +55,14 @@ class AccountRepository @Inject constructor(
     private val _account = MutableStateFlow(load())
     val account: StateFlow<Account?> = _account
     private var session: ECKeyPair? = null
+    private val _signingUnlocked = MutableStateFlow(false)
+    /**
+     * True while a passkey signing session is open: the derived key is held in memory, so the next signature needs no
+     * prompt. It closes on [lock], on sign-out, after [SESSION_MS], or when Android ends the process.
+     */
+    val signingUnlocked: StateFlow<Boolean> = _signingUnlocked
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var expiry: Job? = null
     private val json = Json { ignoreUnknownKeys = true }
     private val b64 = Base64.getUrlEncoder().withoutPadding()
 
@@ -61,17 +76,20 @@ class AccountRepository @Inject constructor(
 
     /** Creates a new passkey and its account. One biometric prompt, plus a second if the provider defers PRF. */
     suspend fun createPasskeyAccount(activity: Activity): Account {
+        // Each passkey gets its creation time, so several Tegami passkeys can be told apart in the picker.
+        val label = "Tegami · " + java.time.LocalDateTime.now()
+            .format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", java.util.Locale.ENGLISH))
         val request = """{"challenge":"${random()}","rp":{"id":"$rpId","name":"Tegami"},""" +
-            """"user":{"id":"${random()}","name":"Tegami account","displayName":"Tegami account"},""" +
+            """"user":{"id":"${random()}","name":"$label","displayName":"$label"},""" +
             """"pubKeyCredParams":[{"type":"public-key","alg":-7},{"type":"public-key","alg":-257}],""" +
             """"authenticatorSelection":{"residentKey":"required","requireResidentKey":true,"userVerification":"required"},""" +
             """"attestation":"none","timeout":60000,"extensions":{"prf":{"eval":{"first":"$SALT"}}}}"""
         val response = try {
             CredentialManager.create(activity).createCredential(activity, CreatePublicKeyCredentialRequest(request))
         } catch (e: CreateCredentialCancellationException) {
-            throw TegamiError.WalletRejected("cancelled")
+            throw TegamiError.PasskeyCancelled
         } catch (e: CreateCredentialException) {
-            throw TegamiError.Invalid("Couldn't create a passkey: ${e.message ?: e.type}")
+            throw classify(e.type, e.message)
         }
         val reg = json.parseToJsonElement((response as CreatePublicKeyCredentialResponse).registrationResponseJson).jsonObject
         val credentialId = reg["id"]?.jsonPrimitive?.content ?: throw TegamiError.Parse("passkey without id")
@@ -120,12 +138,23 @@ class AccountRepository @Inject constructor(
         val key = EvmKeys.fromPrfOutput(prf)
         prf.fill(0)
         if (!EvmKeys.sameAddress(EvmKeys.address(key), current.address)) throw TegamiError.Invalid("That passkey belongs to a different account.")
-        session = key
+        open(key)
         return key
     }
 
-    /** Ends the signing session: the next signature needs the passkey again. */
-    fun lock() { session = null }
+    /** Ends the signing session: Tegami drops its reference to the key, and the next signature asks for the passkey. */
+    fun lock() {
+        expiry?.cancel()
+        session = null
+        _signingUnlocked.value = false
+    }
+
+    private fun open(key: ECKeyPair) {
+        session = key
+        _signingUnlocked.value = true
+        expiry?.cancel()
+        expiry = scope.launch { delay(SESSION_MS); lock() }
+    }
 
     fun disconnect() {
         lock()
@@ -136,7 +165,7 @@ class AccountRepository @Inject constructor(
     private fun remember(prf: ByteArray, credentialId: String): Account {
         val key = EvmKeys.fromPrfOutput(prf)
         prf.fill(0)
-        session = key
+        open(key)
         return Account(EvmKeys.address(key), "Passkey account", Account.Kind.Passkey).also {
             prefs.edit().putString(KEY_ADDRESS, it.address).putString(KEY_LABEL, it.label)
                 .putString(KEY_KIND, it.kind.name).putString(KEY_CREDENTIAL, credentialId).apply()
@@ -152,14 +181,29 @@ class AccountRepository @Inject constructor(
         val result = try {
             CredentialManager.create(activity).getCredential(activity, GetCredentialRequest(listOf(GetPublicKeyCredentialOption(request))))
         } catch (e: GetCredentialCancellationException) {
-            throw TegamiError.WalletRejected("cancelled")
+            throw TegamiError.PasskeyCancelled
+        } catch (e: NoCredentialException) {
+            throw TegamiError.PasskeyNotFound
         } catch (e: GetCredentialException) {
-            throw TegamiError.Invalid("Couldn't use the passkey: ${e.message ?: e.type}")
+            throw classify(e.type, e.message)
         }
         val cred = result.credential as? PublicKeyCredential ?: throw TegamiError.Parse("not a passkey credential")
         val auth = json.parseToJsonElement(cred.authenticationResponseJson).jsonObject
         val id = auth["id"]?.jsonPrimitive?.content ?: throw TegamiError.Parse("passkey without id")
         return id to (prfOutput(auth) ?: throw TegamiError.PasskeyUnavailable)
+    }
+
+    /** Maps Credential Manager failures to messages people can act on; the raw text stays in the log only. */
+    private fun classify(type: String, message: String?): TegamiError {
+        android.util.Log.w("Tegami", "passkey: $type ${message.orEmpty()}")
+        val text = "$type ${message.orEmpty()}".lowercase()
+        return when {
+            "timed out" in text || "timeout" in text -> TegamiError.PasskeyTimedOut
+            "cancel" in text || "user_canceled" in text -> TegamiError.PasskeyCancelled
+            "no credential" in text || "no_credential" in text -> TegamiError.PasskeyNotFound
+            "unsupported" in text || "not supported" in text -> TegamiError.PasskeyUnavailable
+            else -> TegamiError.PasskeyFailed(type)
+        }
     }
 
     private fun prfOutput(response: JsonObject): ByteArray? = runCatching {
@@ -175,6 +219,8 @@ class AccountRepository @Inject constructor(
         private const val KEY_LABEL = "account_label"
         private const val KEY_KIND = "account_kind"
         private const val KEY_CREDENTIAL = "passkey_credential_id"
+        /** How long a signing session stays open after a passkey prompt. */
+        const val SESSION_MS = 10 * 60_000L
 
         /** mera's fixed PRF salt: SHA-256("mera.prf.salt.v1"), base64url. Same salt, same account as mera. */
         val SALT: String = Base64.getUrlEncoder().withoutPadding()

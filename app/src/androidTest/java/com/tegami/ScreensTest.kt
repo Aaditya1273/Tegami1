@@ -28,6 +28,8 @@ import com.tegami.ui.proofs.VerifyScreen
 import com.tegami.ui.proofs.VerifyUi
 import com.tegami.ui.theme.TegamiTheme
 import com.tegami.ui.welcome.WelcomeScreen
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -142,5 +144,42 @@ class ScreensTest {
         set { GuardianScreen(listOf(Turn(1, false, reply.text, reply)), {}, { _, _ -> }, {}, {}) }
         rule.onNodeWithText("Declined: outside what Guardian may do").assertIsDisplayed()
         assertTrue(rule.onAllNodes(androidx.compose.ui.test.hasText("Open draft")).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test fun accountReadyShowsTheRealAddressAndContinues() {
+        var continued = 0
+        set { com.tegami.ui.welcome.AccountReadyScreen(config, watcher.address, com.tegami.ui.welcome.Arrival.Created, {}, { continued++ }) }
+        rule.onNodeWithText("Your Tegami account is ready.").assertIsDisplayed()
+        rule.onNodeWithText("0x0C6C42699A17", substring = true).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Linked to your passkey", substring = true).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Open my letters").performScrollTo().performClick()
+        assertEquals(1, continued)
+    }
+
+    @Test fun signingSessionChipReflectsStateAndHidesLockWhileBusy() {
+        var locked = 0
+        var state by androidx.compose.runtime.mutableStateOf(true to false) // (unlocked, busy)
+        set { com.tegami.ui.components.SigningSessionChip(state.first, state.second, onLock = { locked++ }) }
+        rule.onNodeWithText("Signing unlocked").assertIsDisplayed()
+        rule.onNodeWithText("Lock").performClick()
+        assertEquals(1, locked)
+        state = true to true
+        rule.onNodeWithText("Lock").assertDoesNotExist() // never strand an operation in flight
+        state = false to false
+        rule.onNodeWithText("Signing locked").assertIsDisplayed()
+        rule.onNodeWithText("Lock").assertDoesNotExist()
+    }
+
+    @Test fun cancelledPasskeyIsCalmAndTimeoutHasNoSystemCode() {
+        set {
+            androidx.compose.foundation.layout.Column {
+                com.tegami.ui.components.ErrorBanner(com.tegami.domain.TegamiError.PasskeyCancelled, onRetry = {})
+                com.tegami.ui.components.ErrorBanner(com.tegami.domain.TegamiError.PasskeyTimedOut, onRetry = {})
+            }
+        }
+        rule.onNodeWithText("Cancelled. Nothing was created or signed.").assertIsDisplayed()
+        rule.onNodeWithText("Try again").assertIsDisplayed()
+        rule.onNodeWithText("timed out", substring = true).assertIsDisplayed()
+        assertTrue(rule.onAllNodes(androidx.compose.ui.test.hasText("[15]", substring = true)).fetchSemanticsNodes().isEmpty())
     }
 }

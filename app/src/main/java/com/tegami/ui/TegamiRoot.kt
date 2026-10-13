@@ -92,6 +92,7 @@ fun TegamiRoot(session: SessionViewModel, incomingLinks: Int) {
     val letters by session.letters.collectAsStateWithLifecycle()
     val hide by session.hideAmounts.collectAsStateWithLifecycle()
     val connecting by session.connecting.collectAsStateWithLifecycle()
+    val unlocked by session.signingUnlocked.collectAsStateWithLifecycle()
     val activity = LocalHostActivity.current
     val snackbar = remember { SnackbarHostState() }
     val reduced = LocalReducedMotion.current
@@ -107,7 +108,8 @@ fun TegamiRoot(session: SessionViewModel, incomingLinks: Int) {
         if (account == null && !onWelcome && nav.currentDestination?.route != Routes.VERIFY) {
             nav.navigate(Routes.WELCOME) { popUpTo(0) }
         } else if (account != null && onWelcome) {
-            nav.navigate("home") { popUpTo(0) }
+            // A real create/restore/connect gets its account-ready moment; anything else goes straight home.
+            nav.navigate(if (session.arrival.value != null) "ready" else "home") { popUpTo(0) }
         }
     }
     LaunchedEffect(incomingLinks) { if (incomingLinks > 0) nav.navigate(Routes.VERIFY) { launchSingleTop = true } }
@@ -129,6 +131,13 @@ fun TegamiRoot(session: SessionViewModel, incomingLinks: Int) {
                 composable(Routes.WELCOME) {
                     WelcomeScreen(config, connecting, onConnect = connect, onSignIn = signIn, onMetaMask = { session.connectMetaMask() }, onWatch = { session.watch(it) },
                         onDemo = { session.watchDemo() }, onVerify = { nav.navigate(Routes.VERIFY) })
+                }
+                composable("ready") {
+                    val a = account ?: return@composable
+                    val arrival by session.arrival.collectAsStateWithLifecycle()
+                    com.tegami.ui.welcome.AccountReadyScreen(config, a.address, arrival ?: com.tegami.ui.welcome.Arrival.Created,
+                        onCopied = { message("Address copied") },
+                        onContinue = { session.arrivalShown(); nav.navigate("home") { popUpTo(0) } })
                 }
                 composable("home") {
                     val a = account ?: return@composable
@@ -164,7 +173,8 @@ fun TegamiRoot(session: SessionViewModel, incomingLinks: Int) {
                         onReview = vm::review, onEdit = vm::backToEdit, onSign = { activity?.let(vm::sign) }, onShared = vm::recordShared,
                         onStartOver = vm::startOver,
                         onVerifyOwn = { link -> session.openStatement(link); nav.navigate(Routes.VERIFY) },
-                        onOpenVerifier = { nav.navigate(Routes.VERIFY) }, onConnectWallet = connect, onMessage = message)
+                        onOpenVerifier = { nav.navigate(Routes.VERIFY) }, onConnectWallet = connect, onMessage = message,
+                        signingUnlocked = unlocked, onLockSigning = session::lockSigning)
                 }
                 composable("pay") {
                     val a = account ?: return@composable
@@ -172,7 +182,8 @@ fun TegamiRoot(session: SessionViewModel, incomingLinks: Int) {
                     val ui by vm.ui.collectAsStateWithLifecycle()
                     com.tegami.ui.pay.PayScreen(config, a.address, a.kind == com.tegami.data.Account.Kind.MetaMask, ui, onTo = vm::setTo, onAmount = vm::setAmount,
                         onInvoice = vm::setInvoice, onNote = vm::setNote, onSend = { activity?.let(vm::send) },
-                        onLoad = vm::loadBalances, onAnother = vm::reset, onBack = { nav.popBackStack() })
+                        onLoad = vm::loadBalances, onAnother = vm::reset, onBack = { nav.popBackStack() },
+                        signingUnlocked = unlocked, onLockSigning = session::lockSigning)
                 }
                 composable(Routes.VERIFY) {
                     val vm: VerifyViewModel = hiltViewModel()
@@ -202,7 +213,8 @@ fun TegamiRoot(session: SessionViewModel, incomingLinks: Int) {
                         letters.letters.size, letters.letters.count { it.seal is com.tegami.domain.Seal.Sealed },
                         onLoadMint = { session.loadMint() }, onSecureScreen = session::setSecureScreen, onHideAmounts = session::setHideAmounts,
                         onReducedMotion = session::setReducedMotion, onClearDisclosures = session::clearDisclosures,
-                        onConnectWallet = connect, onDisconnect = session::disconnect, onMessage = message)
+                        onConnectWallet = connect, onDisconnect = session::disconnect, onMessage = message,
+                        signingUnlocked = unlocked, onLockSigning = session::lockSigning)
                 }
             }
             // Hidden while typing, so the keyboard never pushes the tab bar over the form's buttons.

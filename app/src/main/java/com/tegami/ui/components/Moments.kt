@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -91,7 +92,7 @@ enum class Pose(@DrawableRes val res: Int) {
 fun Fox(pose: Pose, height: Dp, modifier: Modifier = Modifier) {
     val reduced = LocalReducedMotion.current
     val hop = remember(pose) { Animatable(if (reduced) 1f else 0f) }
-    LaunchedEffect(pose) { if (!reduced) hop.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow)) }
+    LaunchedEffect(pose) { if (!reduced) hop.animateTo(1f, Motion.hop) }
     Image(painterResource(pose.res), contentDescription = null, contentScale = ContentScale.Fit,
         modifier = modifier.height(height).graphicsLayer {
             translationY = (1f - hop.value) * 20.dp.toPx(); alpha = hop.value.coerceIn(0f, 1f)
@@ -145,14 +146,14 @@ fun WeekStrip(days: List<DayMark>, modifier: Modifier = Modifier) {
             val label = if (d.today) "Today" else d.date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(38.dp)
-                    .then(if (d.paid && d.today) Modifier.border(2.dp, c.primary, CircleShape).padding(3.dp) else Modifier)
-                    .background(if (d.paid) c.primary else c.surface, CircleShape)
+                    .then(if (d.paid && d.today) Modifier.border(2.dp, c.action, CircleShape).padding(3.dp) else Modifier)
+                    .background(if (d.paid) c.action else c.surface, CircleShape)
                     .then(if (!d.paid) Modifier.border(2.dp, if (d.today) c.primary else c.border, CircleShape) else Modifier)
                     .semantics { contentDescription = "$label: " + if (d.paid) "income received" else "no counted payment" },
                     contentAlignment = Alignment.Center) {
                     if (d.paid) Canvas(Modifier.size(15.dp)) {
                         val p = Path().apply { moveTo(size.width * 0.12f, size.height * 0.52f); lineTo(size.width * 0.4f, size.height * 0.78f); lineTo(size.width * 0.9f, size.height * 0.22f) }
-                        drawPath(p, c.onPrimary, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                        drawPath(p, c.onAction, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
                     }
                 }
                 Spacer(Modifier.height(6.dp))
@@ -199,7 +200,7 @@ fun SealRing(modifier: Modifier = Modifier, ringSize: Dp = 200.dp) {
         kotlinx.coroutines.delay(250)
         fill.animateTo(1f, tween(Motion.seal + 180, easing = Motion.Emphasized))
         stamped = true; Haptics.success(view)
-        stamp.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow))
+        stamp.animateTo(1f, Motion.stamp)
     }
     Box(modifier.size(ringSize).semantics { contentDescription = "Statement sealed" }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
@@ -207,7 +208,7 @@ fun SealRing(modifier: Modifier = Modifier, ringSize: Dp = 200.dp) {
             val inset = stroke / 2
             val arc = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
             drawArc(c.subtle, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
-            drawArc(c.primary, -90f, 360f * fill.value, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
+            drawArc(c.action, -90f, 360f * fill.value, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
         }
         if (stamped) ArtIcon(R.drawable.art_seal, ringSize * 0.56f, Modifier.graphicsLayer {
             val s = 1.6f - 0.6f * stamp.value
@@ -255,5 +256,31 @@ fun WelcomePanel(title: String, body: String, action: String, pose: Pose? = Pose
         Text(body, style = MaterialTheme.typography.bodyMedium, color = c.inkSecondary, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         Spacer(Modifier.height(Spacing.standard))
         PrimaryButton(action, onClick = onAction)
+    }
+}
+
+/**
+ * The real state of a passkey signing session, from AccountRepository.signingUnlocked. [busy] hides Lock while a
+ * signature or payment is in flight, so the person can't strand an operation half-way.
+ */
+@Composable
+fun SigningSessionChip(unlocked: Boolean, busy: Boolean, onLock: () -> Unit, modifier: Modifier = Modifier) {
+    val c = Tegami.colors
+    val bg by androidx.compose.animation.animateColorAsState(if (unlocked) c.positiveTint else c.subtle,
+        tween(Motion.control), label = "session")
+    Row(modifier.fillMaxWidth().background(bg, Shapes.standard).padding(start = Spacing.related, end = 4.dp, top = 10.dp, bottom = 10.dp)
+        .semantics(mergeDescendants = true) {
+            stateDescription = if (unlocked) "Signing unlocked" else "Signing locked"
+        }, verticalAlignment = Alignment.CenterVertically) {
+        ArtIcon(R.drawable.art_lock, 28.dp)
+        Spacer(Modifier.width(Spacing.related))
+        Column(Modifier.weight(1f)) {
+            Text(if (unlocked) "Signing unlocked" else "Signing locked", style = MaterialTheme.typography.titleMedium,
+                color = if (unlocked) c.positive else c.ink)
+            Text(if (unlocked) "Your passkey opened this session. It locks after 10 minutes, or when you lock it."
+                else "Your passkey will ask before anything is signed.",
+                style = MaterialTheme.typography.bodyMedium, color = c.inkSecondary)
+        }
+        if (unlocked && !busy) TextAction("Lock", onClick = onLock)
     }
 }

@@ -43,6 +43,7 @@ import com.tegami.data.Disclosure
 import com.tegami.proof.StatementDraft
 import com.tegami.ui.components.Card
 import com.tegami.ui.components.ChoiceTiles
+import com.tegami.ui.components.SigningSessionChip
 import com.tegami.ui.components.CardHeader
 import com.tegami.ui.components.Expandable
 import com.tegami.ui.components.Glyph
@@ -92,6 +93,8 @@ fun ProofsScreen(
     onOpenVerifier: () -> Unit,
     onConnectWallet: () -> Unit,
     onMessage: (String) -> Unit,
+    signingUnlocked: Boolean = false,
+    onLockSigning: () -> Unit = {},
 ) {
     val reduced = LocalReducedMotion.current
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.gutter)) {
@@ -107,7 +110,7 @@ fun ProofsScreen(
             Column {
                 when (s) {
                     0 -> Form(config, account, ui, lettersLoading, onAmount, onVerifier, onPreset, onValidity, onReview, onConnectWallet)
-                    1 -> Review(ui.review!!, ui.step, onEdit, onSign)
+                    1 -> Review(ui.review!!, ui.step, onEdit, onSign, account.kind, signingUnlocked, onLockSigning)
                     else -> Done(ui.step as SignStep.Signed, onShared, onStartOver, onVerifyOwn, onMessage)
                 }
             }
@@ -186,7 +189,8 @@ private fun Form(
 }
 
 @Composable
-private fun Review(draft: StatementDraft, step: SignStep, onEdit: () -> Unit, onSign: () -> Unit) {
+private fun Review(draft: StatementDraft, step: SignStep, onEdit: () -> Unit, onSign: () -> Unit,
+                   kind: Account.Kind, signingUnlocked: Boolean, onLockSigning: () -> Unit) {
     val c = Tegami.colors
     val s = draft.statement
     Card {
@@ -218,7 +222,17 @@ private fun Review(draft: StatementDraft, step: SignStep, onEdit: () -> Unit, on
         is SignStep.Failed -> { ErrorBanner(step.error, onRetry = null); Gap(8) }
         else -> Unit
     }
-    PrimaryButton(if (step == SignStep.AwaitingWallet) "Waiting for your passkey…" else "Sign with passkey",
+    if (kind == Account.Kind.Passkey) {
+        SigningSessionChip(signingUnlocked, busy = step == SignStep.AwaitingWallet, onLock = onLockSigning)
+        Gap(12)
+    }
+    val viaMetaMask = kind == Account.Kind.MetaMask
+    PrimaryButton(when {
+            step == SignStep.AwaitingWallet -> if (viaMetaMask) "Waiting for MetaMask…" else "Waiting for your passkey…"
+            viaMetaMask -> "Sign in MetaMask"
+            signingUnlocked -> "Sign now (session open)"
+            else -> "Sign with passkey"
+        },
         loading = step == SignStep.AwaitingWallet, onClick = onSign)
     Gap(8)
     SecondaryButton("Edit", enabled = step != SignStep.AwaitingWallet, onClick = onEdit)

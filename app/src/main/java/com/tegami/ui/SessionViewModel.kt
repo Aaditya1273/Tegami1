@@ -63,6 +63,15 @@ class SessionViewModel @Inject constructor(
     private val _connecting = MutableStateFlow(false)
     val connecting: StateFlow<Boolean> = _connecting
 
+    /** Set only after an account was really created, restored or connected; drives the account-ready moment. */
+    private val _arrival = MutableStateFlow<com.tegami.ui.welcome.Arrival?>(null)
+    val arrival: StateFlow<com.tegami.ui.welcome.Arrival?> = _arrival
+    fun arrivalShown() { _arrival.value = null }
+
+    /** The real passkey signing session (see AccountRepository.signingUnlocked). */
+    val signingUnlocked = accounts.signingUnlocked
+    fun lockSigning() = accounts.lock()
+
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     /** One-off messages for the snackbar. */
     val messages: SharedFlow<String> = _messages
@@ -87,6 +96,7 @@ class SessionViewModel @Inject constructor(
         _connecting.value = true
         try {
             if (existing) accounts.signInWithPasskey(activity) else accounts.createPasskeyAccount(activity)
+            _arrival.value = if (existing) com.tegami.ui.welcome.Arrival.Restored else com.tegami.ui.welcome.Arrival.Created
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -101,6 +111,7 @@ class SessionViewModel @Inject constructor(
         _connecting.value = true
         try {
             accounts.rememberMetaMask(metaMask.connect())
+            _arrival.value = com.tegami.ui.welcome.Arrival.MetaMask
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

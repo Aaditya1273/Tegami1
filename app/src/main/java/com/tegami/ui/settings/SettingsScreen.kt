@@ -68,6 +68,8 @@ fun SettingsScreen(
     onConnectWallet: () -> Unit,
     onDisconnect: () -> Unit,
     onMessage: (String) -> Unit,
+    signingUnlocked: Boolean = false,
+    onLockSigning: () -> Unit = {},
 ) {
     val c = Tegami.colors
     val ctx = LocalContext.current
@@ -78,8 +80,8 @@ fun SettingsScreen(
         // Identity first: which address, how it's held, on which network, and what it has here.
         Column(Modifier.fillMaxWidth().background(c.surface, Shapes.large).border(1.dp, c.border, Shapes.large).padding(Spacing.section)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(52.dp).background(if (account.canSign) c.primary else c.inkTertiary, CircleShape), contentAlignment = Alignment.Center) {
-                    Text(account.address.take(2).uppercase(), style = MaterialTheme.typography.titleMedium, color = c.onPrimary)
+                Box(Modifier.size(52.dp).background(if (account.canSign) c.action else c.inkTertiary, CircleShape), contentAlignment = Alignment.Center) {
+                    Text(account.address.take(2).uppercase(), style = MaterialTheme.typography.titleMedium, color = c.onAction)
                 }
                 Spacer(Modifier.width(Spacing.standard))
                 Column(Modifier.weight(1f).clickable(role = Role.Button, onClickLabel = "Copy address") {
@@ -103,6 +105,10 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyMedium, color = c.inkTertiary)
             Gap(16)
             if (!account.canSign) { PrimaryButton("Sign in with a passkey", onClick = onConnectWallet); Gap(8) }
+            if (account.kind == com.tegami.data.Account.Kind.Passkey) {
+                com.tegami.ui.components.SigningSessionChip(signingUnlocked, busy = false, onLock = onLockSigning)
+                Gap(8)
+            }
             SecondaryButton(if (account.canSign) "Sign out" else "Stop watching", onClick = onDisconnect)
         }
 

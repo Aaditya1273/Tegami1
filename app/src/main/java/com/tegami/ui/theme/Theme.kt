@@ -31,8 +31,12 @@ import androidx.compose.ui.unit.sp
 import com.tegami.R
 
 /**
- * Semantic colour tokens, from the art: crimson wax for actions, cream paper, red-black lacquer for the
+ * Semantic colour tokens, from the art: crimson wax for actions, cream paper, ink black, red-black lacquer for the
  * hero, gold for accents. Screens use these names, never raw hex. The seal colour marks a sealed letter only.
+ *
+ * Two crimsons on purpose: [action] fills buttons and selected controls and is the same deep crimson in both
+ * themes; [primary] is crimson used as text or line, lightened in dark mode so it stays readable. [danger] is a
+ * vermilion-orange, never the brand crimson, so an error can't be mistaken for a button. All text pairs ≥ 4.5:1.
  */
 @Immutable
 data class TegamiColors(
@@ -48,8 +52,11 @@ data class TegamiColors(
     val primary: Color,
     val onPrimary: Color,
     val primaryTint: Color,
-    /** [primary] while pressed: the wax deepens. */
+    /** [action] while pressed: the wax deepens. */
     val primaryPressed: Color,
+    /** Fill for primary buttons, selected tiles and progress: deep crimson in both themes. */
+    val action: Color,
+    val onAction: Color,
     /** The one lacquer hero card per screen (a gradient from [hero] to [heroEnd]), and what sits on it. */
     val hero: Color,
     val heroEnd: Color,
@@ -68,36 +75,41 @@ data class TegamiColors(
     val isDark: Boolean,
 )
 
-private val Crimson = Color(0xFFA3161D)
-private val Cream = Color(0xFFFAF4EA)
-private val Lacquer = Color(0xFF2A1714)
+private val Crimson = Color(0xFFB52635)     // action fill; cream text on it is 6.0:1
+private val CrimsonInk = Color(0xFFA51E2D)  // crimson as text on cream: 6.6:1
+private val Cream = Color(0xFFF8F1E7)
+private val Ink = Color(0xFF1C1517)
+private val Vermilion = Color(0xFFC4320A)   // danger: orange-red, distinct from the crimson
 
 val LightColors = TegamiColors(
-    canvas = Cream, surface = Color(0xFFFFFDF8), raised = Color.White,
-    ink = Lacquer, inkSecondary = Lacquer.copy(alpha = 0.74f), inkTertiary = Lacquer.copy(alpha = 0.62f),
-    divider = Lacquer.copy(alpha = 0.08f), border = Lacquer.copy(alpha = 0.14f), subtle = Lacquer.copy(alpha = 0.05f),
-    primary = Crimson, onPrimary = Color(0xFFFFF8EE), primaryTint = Crimson.copy(alpha = 0.08f),
-    primaryPressed = Color(0xFF7E0F15), hero = Color(0xFF2E0A0C), heroEnd = Color(0xFF7A1218), onHero = Color(0xFFFFF4E6),
+    canvas = Cream, surface = Color(0xFFFFFCF6), raised = Color.White,
+    ink = Ink, inkSecondary = Ink.copy(alpha = 0.74f), inkTertiary = Ink.copy(alpha = 0.62f),
+    divider = Ink.copy(alpha = 0.08f), border = Ink.copy(alpha = 0.14f), subtle = Ink.copy(alpha = 0.05f),
+    primary = CrimsonInk, onPrimary = Color(0xFFFFF8EE), primaryTint = Crimson.copy(alpha = 0.08f),
+    primaryPressed = Color(0xFF8F1A27), action = Crimson, onAction = Color(0xFFFFF8EE),
+    hero = Color(0xFF2E0A0C), heroEnd = Color(0xFF7A1218), onHero = Color(0xFFFFF4E6),
     gold = Color(0xFFD4A34E), seal = Color(0xFFC0262D), onSeal = Color(0xFFFFF4E6),
     positive = Color(0xFF1E6B47), positiveTint = Color(0xFF1E6B47).copy(alpha = 0.10f),
     warning = Color(0xFF8A5300), warningTint = Color(0xFF8A5300).copy(alpha = 0.10f),
-    danger = Color(0xFFB3261E), dangerTint = Color(0xFFB3261E).copy(alpha = 0.09f),
-    disabled = Lacquer.copy(alpha = 0.30f), isDark = false,
+    danger = Vermilion, dangerTint = Vermilion.copy(alpha = 0.09f),
+    disabled = Ink.copy(alpha = 0.30f), isDark = false,
 )
 
-private val Night = Color(0xFF150C0B)
+private val Night = Color(0xFF120D0E)
 private val Linen = Color(0xFFF6EADB)
 
 val DarkColors = TegamiColors(
-    canvas = Night, surface = Color(0xFF1F1513), raised = Color(0xFF291C19),
+    canvas = Night, surface = Color(0xFF1D1617), raised = Color(0xFF261D1F),
     ink = Linen, inkSecondary = Linen.copy(alpha = 0.76f), inkTertiary = Linen.copy(alpha = 0.62f),
     divider = Linen.copy(alpha = 0.08f), border = Linen.copy(alpha = 0.16f), subtle = Linen.copy(alpha = 0.06f),
-    primary = Color(0xFFF2786E), onPrimary = Color(0xFF2A0B0B), primaryTint = Color(0xFFF2786E).copy(alpha = 0.12f),
-    primaryPressed = Color(0xFFD85E55), hero = Color(0xFF2A0A0C), heroEnd = Color(0xFF6A1016), onHero = Color(0xFFFFF4E6),
+    // Crimson stays crimson in the dark: fills use [action]; [primary] is the readable crimson-rose for text (9.6:1).
+    primary = Color(0xFFF0A39B), onPrimary = Color(0xFF2A0B0B), primaryTint = Crimson.copy(alpha = 0.22f),
+    primaryPressed = Color(0xFF8F1A27), action = Crimson, onAction = Color(0xFFFFF4E6),
+    hero = Color(0xFF2A0A0C), heroEnd = Color(0xFF6A1016), onHero = Color(0xFFFFF4E6),
     gold = Color(0xFFE0B464), seal = Color(0xFFE5574C), onSeal = Color(0xFF2A0B0B),
     positive = Color(0xFF63C493), positiveTint = Color(0xFF63C493).copy(alpha = 0.12f),
     warning = Color(0xFFE6AA4E), warningTint = Color(0xFFE6AA4E).copy(alpha = 0.12f),
-    danger = Color(0xFFF2857C), dangerTint = Color(0xFFF2857C).copy(alpha = 0.12f),
+    danger = Color(0xFFFF9466), dangerTint = Color(0xFFFF9466).copy(alpha = 0.12f),
     disabled = Linen.copy(alpha = 0.32f), isDark = true,
 )
 
@@ -134,6 +146,13 @@ object Motion {
     val Standard: Easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val Emphasized: Easing = CubicBezierEasing(0.3f, 0f, 0f, 1f)
     val Exit: Easing = CubicBezierEasing(0.3f, 0f, 1f, 1f)
+
+    /** Character reaction: the fox lands with a little life when its pose changes. */
+    val hop: androidx.compose.animation.core.SpringSpec<Float> =
+        androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)
+    /** A wax seal pressing down: heavier, one overshoot. Used only after a real success (sealed, account ready). */
+    val stamp: androidx.compose.animation.core.SpringSpec<Float> =
+        androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)
 }
 
 /** Haptics confirm real outcomes only: a selection tick, a verified result, a rejection. Never decorative. */

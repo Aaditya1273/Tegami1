@@ -206,8 +206,8 @@ private fun TurnView(
     val bubble = Modifier.graphicsLayer { alpha = enter.value; translationY = (1f - enter.value) * 8.dp.toPx() }
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = if (t.fromUser) Arrangement.End else Arrangement.Start) {
         if (t.fromUser) {
-            Text(t.text, style = MaterialTheme.typography.bodyLarge, color = c.onPrimary,
-                modifier = bubble.widthIn(max = 300.dp).background(c.primary, RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp))
+            Text(t.text, style = MaterialTheme.typography.bodyLarge, color = c.onAction,
+                modifier = bubble.widthIn(max = 300.dp).background(c.action, RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp))
                     .padding(horizontal = 14.dp, vertical = 10.dp))
             return@Row
         }
