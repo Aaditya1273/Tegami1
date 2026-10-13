@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Tegami" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/paper</item>
+    </style>
+    <!-- Launch screen matches the first frame, so the hand-off doesn't flash. Never held open. -->
+    <style name="Theme.Tegami.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/paper</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_art</item>
+        <item name="postSplashScreenTheme">@style/Theme.Tegami</item>
+    </style>
+</resources>

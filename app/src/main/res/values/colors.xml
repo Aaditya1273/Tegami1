@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="paper">#FFFAF4EA</color>
+    <color name="night">#FF150C0B</color>
+    <color name="lacquer">#FF4A0A0E</color>
+    <color name="indigo">#FF22305C</color>
+    <color name="vermilion">#FFC0392B</color>
+</resources>

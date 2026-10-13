@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Tegami" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/night</item>
+    </style>
+    <style name="Theme.Tegami.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/night</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_art</item>
+        <item name="postSplashScreenTheme">@style/Theme.Tegami</item>
+    </style>
+</resources>

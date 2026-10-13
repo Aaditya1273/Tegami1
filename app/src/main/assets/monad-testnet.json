@@ -1,0 +1,18 @@
+{
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "rpcUrl": "https://testnet-rpc.monad.xyz",
+  "explorerUrl": "https://testnet.monadexplorer.com",
+  "sealContract": "0x74b4413B3f8433Ec62469Edd03099a4CFE87fFD8",
+  "asset": { "address": "0x3e17a15aC573d9550CCC137d7BBC21c855797F4c", "symbol": "tUSD", "name": "Tegami test dollar (testnet, no value)", "decimals": 6 },
+  "registry": {
+    "name": "TegamiSeal registry",
+    "basis": "On-chain list kept by the contract owner. Testnet payers created by scripts/monad_setup.sh; no KYB was performed.",
+    "payers": [
+      { "address": "0x0f355BD69AB69Aac869aC5187B0823239a5C0a40", "name": "Kumo Studio (test payer)" },
+      { "address": "0x1B55A860113C707e36ad67566A87910Cf602eA98", "name": "Hoshi Agency (test payer)" }
+    ]
+  },
+  "demoRecipient": "0xdC299ac462730CDf485Cd88001175e8DB79A886e",
+  "passkeyRpId": "tegami-monad.vercel.app"
+}
