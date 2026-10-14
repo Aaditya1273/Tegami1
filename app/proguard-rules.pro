@@ -21,3 +21,8 @@
 -dontwarn org.slf4j.**
 # A transitive dependency of web3j references an optional Groovy script engine that is never used.
 -dontwarn groovy.lang.**
+# web3j reads each TypeReference's generic type at runtime ("Missing type parameter" without it): keep the
+# Signature attribute and every TypeReference subclass (the anonymous ones in SealContract).
+-keepattributes Signature, EnclosingMethod
+-keep class org.web3j.abi.TypeReference { *; }
+-keep class * extends org.web3j.abi.TypeReference
